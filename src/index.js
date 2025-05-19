@@ -1,5 +1,6 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -7,6 +8,12 @@ if (require('electron-squirrel-startup')) {
 }
 
 const createWindow = () => {
+
+  function insertToApp() {
+    const cssToInject = fs.readFileSync(path.join(__dirname, 'inject.css'), 'utf8');
+
+    mainWindow.webContents.insertCSS(cssToInject);
+  }
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 800,
@@ -27,25 +34,22 @@ const createWindow = () => {
   mainWindow.loadURL('https://magiccircle.gg/r/desktop')
   // Open the DevTools.
   mainWindow.webContents.openDevTools();
-  mainWindow.webContents.insertCSS(`
-  .titlebar {
-    height: 40px;
-    background: #2b3035;
-    color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    app-region: drag;
-    position: fixed;
-    top: 0;
-    width: 100%;
-    z-index: 10000000000; /* Ensure it's on top of other elements */
-    font-family: Arial, serif;
-  }
-  #root {
-  margin-top: 40px;
-  }
-`);
+  insertToApp();
+  app.on('browser-window-focus', function () {
+    globalShortcut.register("CommandOrControl+R", () => {
+        insertToApp();
+        console.log("CommandOrControl+R is pressed: Shortcut Disabled");
+    });
+    globalShortcut.register("F5", () => {
+        insertToApp();
+        console.log("F5 is pressed: Shortcut Disabled");
+    });
+});
+  app.on('browser-window-blur', function () {
+    globalShortcut.unregister('CommandOrControl+R');
+    globalShortcut.unregister('F5');
+});
+
 };
 
 // This method will be called when Electron has finished
@@ -61,6 +65,7 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common
