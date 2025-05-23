@@ -1,6 +1,7 @@
 const { app, BrowserWindow, globalShortcut } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const DiscordRPC = require('discord-rpc');
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -31,15 +32,26 @@ const createWindow = () => {
   });
 
   // and load the index.html of the app.
-  mainWindow.loadURL('https://magiccircle.gg/r/desktop')
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
-  insertToApp();
+  mainWindow.webContents.setUserAgent("McDesktopClient");
+  mainWindow.loadURL('https://magiccircle.gg/').then(r => {
+    console.log(r);
+  })
+
+
   app.on('browser-window-focus', function () {
-    globalShortcut.register("CommandOrControl+R", () => {
-        insertToApp();
-        console.log("CommandOrControl+R is pressed: Shortcut Disabled");
+    globalShortcut.register("CommandOrControl+R", async () => {
+
+      await mainWindow.reload()
+      insertToApp();
+      console.log("CommandOrControl+R is pressed: Shortcut Disabled");
     });
+    globalShortcut.register("CommandOrControl+Shift+I", () => {
+      console.log("CommandOrControl+Shift+I is pressed: Shortcut Disabled, (DevTools)");
+  });
+    globalShortcut.register("CommandOrControl+M", () => {
+     mainWindow.webContents.openDevTools();
+      console.log("Opening Devtools");
+  });
     globalShortcut.register("F5", () => {
         insertToApp();
         console.log("F5 is pressed: Shortcut Disabled");
@@ -47,9 +59,52 @@ const createWindow = () => {
 });
   app.on('browser-window-blur', function () {
     globalShortcut.unregister('CommandOrControl+R');
+    globalShortcut.unregister('CommandOrControl+Shift+I');
+    globalShortcut.unregister('CommandOrControl+M');
     globalShortcut.unregister('F5');
 });
+  // Set this to your Client ID.
+  const clientId = '1227719606223765687';
 
+
+  // Only needed if you want to use spectate, join, or ask to join
+  DiscordRPC.register(clientId);
+
+  const rpc = new DiscordRPC.Client({ transport: 'ipc' });
+
+  const startTimestamp = new Date();
+
+  async function setActivity() {
+    if (!rpc || !mainWindow) {
+      return;
+    }
+
+    const roomID = mainWindow.webContents.getURL().substring(25, mainWindow.webContents.getURL().length);
+    const gameActive = await mainWindow.webContents.executeJavaScript('window.mc_desktop_current_game_name');
+    const finalGameActive = gameActive !== 'Lobby' && gameActive !== undefined ? `Playing ${gameActive}` : `Browsing games in Lobby`
+
+    // You'll need to have snek_large and snek_small assets uploaded to
+    // https://discord.com/developers/applications/<application_id>/rich-presence/assets
+    await rpc.setActivity({
+      details: `Magic Circle Desktop Client(Alpha)`,
+      state: `${finalGameActive}`,
+      startTimestamp,
+      largeImageKey: 'app_image',
+      largeImageText: 'Magic Circle Icon',
+      instance: false,
+    });
+  }
+  insertToApp();
+  rpc.on('ready', () => {
+    setActivity();
+
+    // activity can only be set every 15 seconds
+    setInterval(() => {
+      setActivity();
+    }, 15e3);
+  });
+
+  rpc.login({ clientId }).catch(console.error);
 };
 
 // This method will be called when Electron has finished

@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "type": "npm",
+            "name": "Start",
+            "command": "run",
+            "scripts": "start"
+        }
+    ]
+}

@@ -1,18 +1,18 @@
-  .titlebar {
-    height: 40px;
-    background: #2b3035;
-    color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    app-region: drag;
-    position: fixed;
-    top: 0;
-    width: 100%;
-    z-index: 10000000000; /* Ensure it's on top of other elements */
-    font-family: Arial, serif;
-  }
-  /*This is the Main Game*/
+/*.titlebar {
+  height: 40px;
+  background: #2b3035;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  app-region: drag;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 10000000000;
+  font-family: Arial, serif;
+} No Longer needs to be Injected (New Change)*/
+  /*This is the Main Game Container*/
   #root {
 
   }
@@ -22,5 +22,5 @@
 }
 /*Using Root to control the variables, ALWAYS USE !important AT THE END OF THESE SO THEY OVERRIDE */
 :root {
-  --sait: 40px !important;
+  /*--sait: 40px !important; No Longer needs to be Injected (New Change)*/
 }
