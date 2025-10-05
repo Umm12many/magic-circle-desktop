@@ -6,6 +6,15 @@ const DiscordRPC = require('discord-rpc');
 let mainWindow; // Module-scoped variable to hold the main window
 let devConsoleWindow = null; // New module-scoped variable for the dev console
 
+function generateRandomString(length) {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const charactersLength = characters.length;
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
+}
 // --- Custom Command Configuration ---
 // This object makes it easy to add new custom commands.
 const commandConfig = {
@@ -37,10 +46,15 @@ const commandConfig = {
     function: (args) => {
       if (args && args.length > 0) {
         // The setActivity function has been modified to accept an overrideState
-        if (mainWindow) {
+        if (mainWindow && args[0].toLowerCase()  !== 'random') {
           mainWindow.loadURL("https://magiccircle.gg/r/"+args[0]);
           return `Room set to: "${args.join(' ')}"`;
-        } else {
+        } else if (mainWindow && args[0].toLowerCase()  === 'random') {
+          const roomToJoin = generateRandomString(4);
+          mainWindow.loadURL("https://magiccircle.gg/r/"+roomToJoin);
+          return `Room set to: "${roomToJoin}"`;
+        }
+         else {
           return 'Error: No MainWindow';
         }
 
