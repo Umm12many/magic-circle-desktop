@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Custom Dev Console</title>
+    <style>
+        /* Minimal, dark-themed styling for a console experience */
+        body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Courier New', monospace;
+            padding: 10px;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #output {
+            flex-grow: 1;
+            background-color: #000000;
+            border: 1px solid #3c3c3c;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #input-container {
+            display: flex;
+        }
+        #command-input {
+            flex-grow: 1;
+            background-color: #252525;
+            color: #d4d4d4;
+            border: 1px solid #5a5a5a;
+            padding: 8px;
+            border-radius: 4px;
+            outline: none;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        #command-input:focus {
+            border-color: #007acc;
+        }
+        .log-line {
+            margin-bottom: 5px;
+            line-height: 1.2;
+        }
+        .log-prompt {
+            color: #569cd6; /* Blue for input prompt */
+            font-weight: bold;
+        }
+        .log-success {
+            color: #6a9955; /* Green for success */
+        }
+        .log-error {
+            color: #f44747; /* Red for errors */
+        }
+        .log-info {
+            color: #9cdcfe; /* Light blue for info/result */
+        }
+    </style>
+</head>
+<body>
+    <div id="output">
+        <div class="log-line log-info">Custom Dev Console Ready.</div>
+        <div class="log-line log-info">Use ESC to close or type 'list-commands' for help.</div>
+    </div>
+    <div id="input-container">
+        <input type="text" id="command-input" placeholder="Enter command..." autofocus>
+    </div>
+
+    <script>
+        const outputDiv = document.getElementById('output');
+        const inputField = document.getElementById('command-input');
+
+        /**
+         * Logs a message to the console output area.
+         * @param {string|object} message The content to log.
+         * @param {string} className The CSS class for styling (log-info, log-success, log-error, log-prompt).
+         */
+        function logToOutput(message, className = 'log-info') {
+            const line = document.createElement('div');
+            line.classList.add('log-line', className);
+
+            // Handle structured command list output from the main process
+            if (typeof message === 'object' && message !== null && message.commands) {
+                line.innerHTML = '--- Available Commands ---<br>';
+                for (const name in message.commands) {
+                    const cmd = message.commands[name];
+                    const args = cmd.args.length > 0 ? ` <span class="log-info">[${cmd.args.join('] [')}]</span>` : '';
+                    line.innerHTML += `<span class="log-prompt">${name}</span>${args}: ${cmd.description}<br>`;
+                }
+            } else {
+                // Ensure text content for safety
+                line.textContent = message;
+            }
+
+            outputDiv.appendChild(line);
+            outputDiv.scrollTop = outputDiv.scrollHeight; // Auto-scroll to bottom
+        }
+
+        /**
+         * Parses the command string and sends it to the main process for execution.
+         * @param {string} commandString The raw command input from the user.
+         */
+        async function executeCommand(commandString) {
+            if (!commandString.trim()) return;
+
+            // 1. Log the user input immediately
+            logToOutput(`> ${commandString}`, 'log-prompt');
+
+            try {
+                // Simple space-based parsing. First word is command, rest are arguments.
+                const parts = commandString.trim().split(/\s+/);
+                const commandName = parts[0];
+                const args = parts.slice(1);
+
+                // 2. Call the main process function exposed by the preload script
+                // window.devConsoleApi is defined in dev-console-preload.js
+                const result = await window.devConsoleApi.executeCommand(commandName, args);
+
+                // 3. Log the result
+                if (typeof result === 'string' && result.includes('Error:')) {
+                    logToOutput(result, 'log-error');
+                } else {
+                    logToOutput(result, 'log-success');
+                }
+
+            } catch (error) {
+                logToOutput(`Fatal Console Error: Failed to communicate with main process. ${error.message}`, 'log-error');
+                console.error(error);
+            }
+        }
+
+        // Event listener for the Enter key on the input field
+        inputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const commandString = inputField.value.trim();
+                executeCommand(commandString);
+                inputField.value = ''; // Clear input
+            }
+        });
+
+        // Event listener for the Escape key to close the console window
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                window.close();
+            }
+        });
+    </script>
+</body>
+</html>

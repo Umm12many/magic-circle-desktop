@@ -21,6 +21,7 @@ module.exports = {
     },
     {
       name: '@electron-forge/maker-rpm',
+      platforms: ['fedora'],
       config: {},
     },
   ],
