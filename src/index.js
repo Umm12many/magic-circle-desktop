@@ -7,7 +7,7 @@ let mainWindow; // Module-scoped variable to hold the main window
 let devConsoleWindow = null; // New module-scoped variable for the dev console
 
 function generateRandomString(length) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
   const charactersLength = characters.length;
   for (let i = 0; i < length; i++) {
@@ -41,14 +41,14 @@ const commandConfig = {
     args: []
   },
   'join-room': {
-    description: 'Joins a specific room',
+    description: 'Joins a specific room, type "join-room random" to join a random room (generates a random code)',
     // Arguments are passed as an array to the function
     function: (args) => {
       if (args && args.length > 0) {
         // The setActivity function has been modified to accept an overrideState
         if (mainWindow && args[0].toLowerCase()  !== 'random') {
           mainWindow.loadURL("https://magiccircle.gg/r/"+args[0]);
-          return `Room set to: "${args.join(' ')}"`;
+          return `Room set to: "${args[0]}"`;
         } else if (mainWindow && args[0].toLowerCase()  === 'random') {
           const roomToJoin = generateRandomString(4);
           mainWindow.loadURL("https://magiccircle.gg/r/"+roomToJoin);
@@ -61,13 +61,51 @@ const commandConfig = {
       }
       return 'Error: No room provided.';
     },
-    args: ['<new state>']
+    args: ['<room code>']
   },
-  'list-commands': {
+  'help': {
     description: 'Lists all available commands.',
     // Returns the commandConfig object for structured display in the renderer
+    function: () => commandConfig,
+    args: []
+  },
+  'usurp-host': {
+    description: 'Become Host!',
+    // Returns the commandConfig object for structured display in the renderer
     function: () => {
-      return `Test`;
+      if (mainWindow) {
+        mainWindow.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({"scopePath": ["Room"],"type": "UsurpHost"})`);
+        return "You are now host!";
+      } else {
+        return "Error: No main window!!!!";
+      }
+    },
+    args: []
+  },
+  'set-player-name': {
+    description: 'Sets the players name',
+    // Arguments are passed as an array to the function
+    function: (args) => {
+      if (args && args.length > 0) {
+        // The setActivity function has been modified to accept an overrideState
+        if (mainWindow) {
+          mainWindow.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({"scopePath": ["Room"],"type": "SetPlayerData","name": "${args[0]}"});`);
+          return `Player name set to: "${args[0]}"`;
+        }
+         else {
+          return 'Error: No MainWindow';
+        }
+
+      }
+      return 'Error: No name provided.';
+    },
+    args: ['<player name>']
+  },
+  'error': {
+    description: 'Returns an error ',
+    // Returns the commandConfig object for structured display in the renderer
+    function: () => {
+      return "Error: blank";
     },
     args: []
   }
@@ -165,18 +203,13 @@ const createWindow = () => {
     try {
       const command = commandConfig[commandName];
       if (!command) {
-        return `Error: Command "${commandName}" not found. Type "list-commands" for help.`;
+        return `Error: Command "${commandName}" not found. Type "help" for help.`;
       }
 
       const result = await command.function(args);
 
-      // Handle the special case for listing commands
-      if (commandName === 'list-commands') {
-          return { commands: commandConfig };
-      }
-
       // Return a string representation of the result for the console
-      return `Executed "${commandName}". Result: ${JSON.stringify(result, null, 2)}`;
+      return `${commandName}: ${JSON.stringify(result, null, 2)}`;
 
     } catch (error) {
       console.error(`Dev Console command error for ${commandName}:`, error);
