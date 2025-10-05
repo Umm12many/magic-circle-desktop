@@ -48,11 +48,34 @@ const commandConfig = {
         // The setActivity function has been modified to accept an overrideState
         if (mainWindow && args[0].toLowerCase()  !== 'random') {
           mainWindow.loadURL("https://magiccircle.gg/r/"+args[0]);
-          return `Room set to: "${args[0]}"`;
+          return `Room set to: ${args[0]}`;
         } else if (mainWindow && args[0].toLowerCase()  === 'random') {
           const roomToJoin = generateRandomString(4);
           mainWindow.loadURL("https://magiccircle.gg/r/"+roomToJoin);
-          return `Room set to: "${roomToJoin}"`;
+          return `Room set to: ${roomToJoin}`;
+        }
+         else {
+          return 'Error: No MainWindow';
+        }
+
+      }
+      return 'Error: No room provided.';
+    },
+    args: ['<room code>']
+  },
+  'join-beta-room': {
+    description: 'Joins a specific beta room, type "join-beta-room random" to join a random room (generates a random code)',
+    // Arguments are passed as an array to the function
+    function: (args) => {
+      if (args && args.length > 0) {
+        // The setActivity function has been modified to accept an overrideState
+        if (mainWindow && args[0].toLowerCase()  !== 'random') {
+          mainWindow.loadURL("https://preview.magiccircle.gg/r/"+args[0]);
+          return `Room set to: ${args[0]}`;
+        } else if (mainWindow && args[0].toLowerCase()  === 'random') {
+          const roomToJoin = generateRandomString(4);
+          mainWindow.loadURL("https://preview.magiccircle.gg/r/"+roomToJoin);
+          return `Room set to: ${roomToJoin}`;
         }
          else {
           return 'Error: No MainWindow';
@@ -90,7 +113,7 @@ const commandConfig = {
         // The setActivity function has been modified to accept an overrideState
         if (mainWindow) {
           mainWindow.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({"scopePath": ["Room"],"type": "SetPlayerData","name": "${args[0]}"});`);
-          return `Player name set to: "${args[0]}"`;
+          return `Player name set to: ${args[0]}`;
         }
          else {
           return 'Error: No MainWindow';
