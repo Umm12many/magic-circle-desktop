@@ -15,6 +15,139 @@ function generateRandomString(length) {
   }
   return result;
 }
+// Function to safely execute JS and return the value
+async function getCosmeticObjectFromRenderer(win) {
+    if (!win) {
+        return null;
+    }
+
+    // The JavaScript code to execute in the renderer process.
+    // It uses optional chaining and nullish coalescing (??) to ensure a safe return.
+    const jsCode = `
+        // Access the nested property safely.
+        // If any part of the chain is null/undefined, the expression evaluates to undefined.
+        // We use '|| null' to ensure a null is returned if undefined, which is cleaner.
+        window.MagicCircle_RoomConnection?.lastRoomStateJsonable?.data?.players?.[0]?.cosmetic || null;
+    `;
+
+    try {
+        // executeJavaScript returns a Promise that resolves with the result of the script.
+        // If the script evaluates to an object/JSON, it will be automatically deserialized
+        // into a JavaScript object for use in the main process.
+        const cosmeticObject = await win.webContents.executeJavaScript(jsCode);
+
+        // You can check here if it's the expected type before returning.
+        if (cosmeticObject && typeof cosmeticObject === 'object') {
+            return cosmeticObject;
+        }
+
+        return null; // Return null if the value wasn't found or wasn't an object
+
+    } catch (error) {
+        console.error("Error executing JavaScript to get cosmetic object:", error);
+        return null;
+    }
+}
+
+async function setPlayerCosmetic(win, slot, filename) {
+  if (slot  === "top") {
+    const cosmetic = await getCosmeticObjectFromRenderer(win);
+    await win.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({
+    "scopePath": [
+        "Room"
+    ],
+    "type": "SetPlayerData",
+    "cosmetic": {
+        "color": "${cosmetic.color}",
+        "avatar": [
+            "${cosmetic.avatar[0]}",
+            "${cosmetic.avatar[1]}",
+            "${filename}",
+            "${cosmetic.avatar[3]}"
+        ]
+    }
+})`);
+    return "Successfully Set Top Cosmetic";
+  } else if (slot  === "bottom") {
+    const cosmetic = await getCosmeticObjectFromRenderer(win);
+    await win.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({
+    "scopePath": [
+        "Room"
+    ],
+    "type": "SetPlayerData",
+    "cosmetic": {
+        "color": "${cosmetic.color}",
+        "avatar": [
+            "${filename}",
+            "${cosmetic.avatar[1]}",
+            "${cosmetic.avatar[2]}",
+            "${cosmetic.avatar[3]}"
+        ]
+    }
+})`);
+    return "Successfully Set Bottom Cosmetic";
+  } else if (slot  === "mid") {
+    const cosmetic = await getCosmeticObjectFromRenderer(win);
+    await win.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({
+    "scopePath": [
+        "Room"
+    ],
+    "type": "SetPlayerData",
+    "cosmetic": {
+        "color": "${cosmetic.color}",
+        "avatar": [
+            "${cosmetic.avatar[0]}",
+            "${filename}",
+            "${cosmetic.avatar[2]}",
+            "${cosmetic.avatar[3]}"
+        ]
+    }
+})`);
+    return "Successfully Set Mid Cosmetic";
+  } else if (slot  === "expression") {
+    const cosmetic = await getCosmeticObjectFromRenderer(win);
+    await win.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({
+    "scopePath": [
+        "Room"
+    ],
+    "type": "SetPlayerData",
+    "cosmetic": {
+        "color": "${cosmetic.color}",
+        "avatar": [
+            "${cosmetic.avatar[0]}",
+            "${cosmetic.avatar[1]}",
+            "${cosmetic.avatar[2]}",
+            "${filename}"
+        ]
+    }
+})`);
+    return "Successfully Set Expression Cosmetic";
+  } else {
+    const cosmetic = await getCosmeticObjectFromRenderer(win);
+    await win.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({
+    "scopePath": [
+        "Room"
+    ],
+    "type": "SetPlayerData",
+    "cosmetic": {
+        "color": "${cosmetic.color}",
+        "avatar": [
+            "${cosmetic.avatar[0]}",
+            "${cosmetic.avatar[1]}",
+            "${cosmetic.avatar[2]}",
+            "${cosmetic.avatar[3]}"
+        ]
+    }
+})`);
+    return "Successfully Set _ Cosmetic";
+  }
+}
+
+// Example of how to use it later (e.g., after some time has passed)
+setTimeout(async () => {
+    const cosmetic = await getCosmeticObjectFromRenderer(mainWindow);
+    console.log("The player's cosmetic is:", cosmetic.avatar);
+}, 5000); // Wait 5 seconds, assuming the game object is loaded by then
 // --- Custom Command Configuration ---
 // This object makes it easy to add new custom commands.
 const commandConfig = {
@@ -63,6 +196,31 @@ const commandConfig = {
     },
     args: ['<room code>']
   },
+  'set-player-cosmetic': {
+    description: 'Set the players specified cosmetic to a specific file name',
+    // Arguments are passed as an array to the function
+    function: (args) => {
+      if (args && args.length > 1) {
+        // The setActivity function has been modified to accept an overrideState
+        if (mainWindow) {
+          if (args[0].toLowerCase()  === "top" || args[0].toLowerCase()  === "mid" || args[0].toLowerCase()  === "bottom" || args[0].toLowerCase()  === "expression") {
+            const returnStatement = `${args[0]} was successfully set to ${args[1]}`;
+            setPlayerCosmetic(mainWindow, args[0].toLowerCase(), args[1]);
+            return returnStatement;
+          } else {
+            return "Error: specified cosmetic slot does not exist";
+          }
+        }
+         else {
+          return 'Error: No MainWindow';
+        }
+
+      }
+        return 'Error: No data or not enough data provided.';
+
+    },
+    args: ['<top/bottom/mid/expression> <filename.png>']
+  },
   'join-beta-room': {
     description: 'Joins a specific beta room, type "join-beta-room random" to join a random room (generates a random code)',
     // Arguments are passed as an array to the function
@@ -85,6 +243,30 @@ const commandConfig = {
       return 'Error: No room provided.';
     },
     args: ['<room code>']
+  },
+  'send-chat-message': {
+    description: 'Sends a chat message (No chat limit lol)',
+    // Arguments are passed as an array to the function
+    function: (args) => {
+      if (args && args.length > 0) {
+        // The setActivity function has been modified to accept an overrideState
+        if (mainWindow && args[0].toLowerCase()  !== 'random') {
+          mainWindow.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({
+    "scopePath": [
+        "Room"
+    ],
+    "type": "Chat",
+    "message": "${args[0]}"
+})`);
+          return `Sent Message: ${args[0]}`;
+        } else {
+          return 'Error: No MainWindow';
+        }
+
+      }
+      return 'Error: No message provided.';
+    },
+    args: ['<chat message>']
   },
   'help': {
     description: 'Lists all available commands.',
