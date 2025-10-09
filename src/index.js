@@ -429,7 +429,7 @@ const createWindow = () => {
       mainWindow.webContents.setUserAgent("McDesktopClient");
       await mainWindow.reload()
       insertToApp(mainWindow);
-      console.log("CommandOrControl+R is pressed: Shortcut Disabled");
+      console.log("CommandOrControl+R is pressed: Reloading Page");
     });
     globalShortcut.register("CommandOrControl+Shift+I", () => {
       console.log("CommandOrControl+Shift+I is pressed: Shortcut Disabled, (DevTools)");
@@ -440,7 +440,7 @@ const createWindow = () => {
     });
     globalShortcut.register("F5", () => {
       insertToApp(mainWindow);
-      console.log("F5 is pressed: Shortcut Disabled");
+      console.log("F5 is pressed: Reinserting CSS and any JS in insertToApp()");
     });
     // New global shortcut for Dev Console
     globalShortcut.register("CommandOrControl+D", () => {
@@ -473,7 +473,7 @@ const createWindow = () => {
         finalGameActive = overrideState;
     } else {
         const gameActive = await mainWindow.webContents.executeJavaScript('window.mc_desktop_current_game_name');
-        finalGameActive = gameActive !== 'Lobby' && gameActive !== undefined ? `Playing ${gameActive}` : `Browsing games in Lobby`;
+        finalGameActive = gameActive !== 'Lobby' && gameActive !== undefined ? `Playing ${gameActive}` : `Sifting up soil in Magic Garden`;
     }
 
     await rpc.setActivity({
