@@ -1,0 +1,14 @@
+.titlebar {
+    height: 40px;
+    background: #2b3035;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    app-region: drag;
+    position: fixed;
+    top: 0;
+    width: 1000%;
+    z-index: 10000000000;
+    font-family: Arial, serif;
+  }

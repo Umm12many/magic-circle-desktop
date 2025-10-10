@@ -3,9 +3,9 @@ const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
 
+const isDev = process.env.NODE_ENV === 'development';
 let mainWindow; // Module-scoped variable to hold the main window
 let devConsoleWindow = null; // New module-scoped variable for the dev console
-
 function generateRandomString(length) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -142,12 +142,6 @@ async function setPlayerCosmetic(win, slot, filename) {
     return "Successfully Set _ Cosmetic";
   }
 }
-
-// Example of how to use it later (e.g., after some time has passed)
-setTimeout(async () => {
-    const cosmetic = await getCosmeticObjectFromRenderer(mainWindow);
-    console.log("The player's cosmetic is:", cosmetic.avatar);
-}, 5000); // Wait 5 seconds, assuming the game object is loaded by then
 // --- Custom Command Configuration ---
 // This object makes it easy to add new custom commands.
 const commandConfig = {
@@ -329,6 +323,10 @@ function insertToApp(win) {
   }
 }
 
+function throwJoinPage(win) {
+    win.loadFile(path.join(__dirname, '../dist/index.html'));
+}
+
 // 2. Dev Console Window Creation
 function createDevConsoleWindow() {
   if (devConsoleWindow) {
@@ -387,8 +385,7 @@ const createWindow = () => {
     },
     icon: path.join(__dirname, 'logo.png'),
   });
-
-  // and load the index.html of the app.
+  //Load Magic Garden
   mainWindow.webContents.setUserAgent("McDesktopClient");
   mainWindow.loadURL('https://magiccircle.gg/').then(r => {
     console.log(r);
@@ -402,6 +399,12 @@ const createWindow = () => {
     insertToApp(mainWindow);
     return 'insertToApp completed.';
   });
+
+  ipcMain.handle('main-process-function:throwJoinPage', () => {
+      console.log('IPC event received: insertToApp');
+      throwJoinPage(mainWindow);
+      return 'insertToApp completed.';
+  })
 
   // IPC handler for Dev Console to execute commands
   ipcMain.handle('dev-console:execute-command', async (event, commandName, args) => {

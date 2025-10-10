@@ -18,8 +18,14 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@chakra-ui/react": "^3.27.1",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
     "discord-rpc": "^4.0.1",
-    "electron-squirrel-startup": "^1.0.1"
+    "electron-squirrel-startup": "^1.0.1",
+    "framer-motion": "^12.23.24",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.8.1",
@@ -29,7 +35,10 @@
     "@electron-forge/maker-zip": "^7.8.1",
     "@electron-forge/plugin-auto-unpack-natives": "^7.8.1",
     "@electron-forge/plugin-fuses": "^7.8.1",
+    "@electron-forge/plugin-vite": "^7.10.2",
     "@electron/fuses": "^1.8.0",
-    "electron": "36.2.1"
+    "@vitejs/plugin-react": "^5.0.4",
+    "electron": "36.2.1",
+    "vite": "^7.1.9"
   }
 }

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('versions', {
 contextBridge.exposeInMainWorld('appApi', {
     // Expose a function that invokes the main process's insertToApp function
     insertToApp: () => ipcRenderer.invoke('main-process-function:insertToApp'),
+    throwJoinPage: () => ipcRenderer.invoke('main-process-function:throwJoinPage'),
 })
 
 
@@ -54,8 +55,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
           window.console.log('✅ [IDLE-PREVENTION] Event listeners added with capture phase');
 
-
-          //Added some versioning stuff:
     const injectDiv = () => {
               //<p class="chakra-text css-1491zxh">This room is full.</p>
     //Code for room is fuull, adding a text box to join a new room:
@@ -64,33 +63,13 @@ window.addEventListener('DOMContentLoaded', () => {
     for (const p of rfTargetElements) {
         // Ensure we've found the correct element by checking its text content.
         if (p.textContent.trim().startsWith('This room is full.')) {
-            const rfParent = p.parentElement;
-            if (!rfParent) continue;
-
-            const rfGrandparent = rfParent;
-            if (!rfGrandparent) continue;
-
-            // Use a unique ID to prevent injecting the info more than once in the same spot.
-            const rfInjectionId = 'join-new-injected';
-            if (rfGrandparent.querySelector(`#${rfInjectionId}`)) {
-                continue; // Skip if we've already injected the element here.
-            }
-            console.log('[Electron Injector] Found rf target. Injecting...');
-
-            // Create the electron version
-            const rfJoinNew = document.createElement('div');
-            rfJoinNew.id = rfInjectionId;
-            rfJoinNew.className = "McFlex css-1em7vi";
-            // Populate the text!
-            rfJoinNew.innerHTML = `<div role="group" class="chakra-form-control css-1c9aavf"><input data-testid="room-code-input" placeholder="Room code" id="field-:r3m:" class="chakra-input css-ag6zuc" value=""><button type="button" class="chakra-button css-8olvt7" aria-label="join room with code">JOIN</button><p class="chakra-text css-1l3zn4m">You'll leave this room when you join a new one.</p></div>`;
-            // Append to the grandparent element.
-            rfGrandparent.appendChild(rfJoinNew);
+            ipcRenderer.invoke('main-process-function:throwJoinPage')
         }
     }
 
 
-
-              // Find all <p> tags with the exact classes you specified.
+    //Added some versioning stuff:
+    // Find all <p> tags with the exact classes you specified.
     const targetElements = document.querySelectorAll('p.chakra-text.css-a4hk4l');
 
     for (const p of targetElements) {
