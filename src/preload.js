@@ -1,12 +1,12 @@
 // See the Electron documentation for details on how to use preload scripts:
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 const { contextBridge, ipcRenderer } = require('electron') // Added ipcRenderer
-
+const magicCircleDesktopVersion = "Canary0.0.1"
 contextBridge.exposeInMainWorld('versions', {
   node: () => process.versions.node,
   chrome: () => process.versions.chrome,
   electron: () => process.versions.electron,
-  magicCircleDesktop: "testing",
+  magicCircleDesktop: magicCircleDesktopVersion,
 })
 
 // New API exposed for main app functions
@@ -92,6 +92,9 @@ window.addEventListener('DOMContentLoaded', () => {
         if (grandparent.querySelector(`#${injectionId}node`)) {
             continue; // Skip if we've already injected the element here.
           }
+        if (grandparent.querySelector(`#${injectionId}mcdesktop`)) {
+            continue; // Skip if we've already injected the element here.
+          }
         console.log('[Electron Injector] Found target. Injecting version info.');
 
         // Create the electron version
@@ -118,6 +121,13 @@ window.addEventListener('DOMContentLoaded', () => {
         nodeVersion.innerHTML = `<p class="chakra-text css-a4hk4l">Node Version:</p><p class="chakra-text css-t9gick">v${process.versions.node}</p>`;
         // Append to the grandparent element.
         grandparent.appendChild(nodeVersion);
+        const appVersion = document.createElement('div');
+        appVersion.id = injectionId+"mcdesktop";
+        appVersion.className = "McFlex css-1t8agva";
+        // Populate the text!
+        appVersion.innerHTML = `<p class="chakra-text css-a4hk4l">MGDesktop Version:</p><p class="chakra-text css-t9gick">v${magicCircleDesktopVersion}</p>`;
+        // Append to the grandparent element.
+        grandparent.appendChild(appVersion);
       }
     }
     };

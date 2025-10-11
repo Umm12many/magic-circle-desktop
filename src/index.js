@@ -2,7 +2,21 @@ const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron'); // 
 const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
+const WindowsToaster = require('node-notifier').WindowsToaster;
 
+var notifier = new WindowsToaster({
+  withFallback: false, // Fallback to Growl or Balloons?
+  customPath: undefined // Relative/Absolute path if you want to use your fork of SnoreToast.exe
+});
+app.setAppUserModelId('umm12many.magicgarden');
+notifier.notify({
+  title: 'Magic Garden',
+  message: 'Hello from node-notifier!',
+  appID: 'com.umm12many.magicgarden',
+  icon: path.join(__dirname, 'logo.png'),
+  sound: true, // Play a sound
+  wait: false // Don't wait for user interaction
+});
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow; // Module-scoped variable to hold the main window
 let devConsoleWindow = null; // New module-scoped variable for the dev console
