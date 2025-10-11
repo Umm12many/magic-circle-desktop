@@ -11,8 +11,8 @@ var notifier = new WindowsToaster({
 app.setAppUserModelId('umm12many.magicgarden');
 notifier.notify({
   title: 'Magic Garden',
-  message: 'Hello from node-notifier!',
-  appID: 'com.umm12many.magicgarden',
+  message: 'Magic Garden',
+  appID: 'Magic Garden',
   icon: path.join(__dirname, 'logo.png'),
   sound: true, // Play a sound
   wait: false // Don't wait for user interaction
