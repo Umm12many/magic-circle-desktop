@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron'); // Added ipcMain
+const { app, BrowserWindow, globalShortcut, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
@@ -9,17 +9,51 @@ var notifier = new WindowsToaster({
   customPath: undefined // Relative/Absolute path if you want to use your fork of SnoreToast.exe
 });
 app.setAppUserModelId('umm12many.magicgarden');
-notifier.notify({
-  title: 'Magic Garden',
-  message: 'Magic Garden',
-  appID: 'Magic Garden',
-  icon: path.join(__dirname, 'logo.png'),
-  sound: true, // Play a sound
-  wait: false // Don't wait for user interaction
-});
-const isDev = process.env.NODE_ENV === 'development';
 let mainWindow; // Module-scoped variable to hold the main window
 let devConsoleWindow = null; // New module-scoped variable for the dev console
+
+// Variable to hold the URL from the deep link, if any, before the window is ready
+let deepLinkUrlToLoad = null;
+
+// Function to handle the deep link logic
+function handleProtocolUrl(url) {
+  // Expected format: 'magic-garden://r/ROOMCODE' or similar
+  console.log('Received deep link URL:', url);
+
+  // Use URL object to safely parse the URL
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch (e) {
+    console.error('Failed to parse URL:', e);
+    return;
+  }
+
+  // The path part will be something like '/r/ROOMCODE'
+  // We want to extract 'ROOMCODE' or the whole path if it's the room part
+  const path = parsedUrl.pathname;
+
+  // Assuming your deep link format is 'magic-garden://r/ROOMCODE'
+  // and you want to navigate to 'https://magiccircle.gg/r/ROOMCODE'
+  // A simple way to get the relevant path (e.g., '/r/ROOMCODE')
+  const finalPath = path.startsWith('/') ? path : `/${path}`;
+  const targetUrl = `https://magiccircle.gg/r${finalPath}`;
+
+  console.log('Target navigation URL:', targetUrl);
+
+  if (mainWindow) {
+    // If the main window exists, load the new URL
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    mainWindow.loadURL(targetUrl);
+  } else {
+    // If the window isn't ready yet (e.g., on first launch with a deep link),
+    // save the URL to be loaded later in createWindow
+    deepLinkUrlToLoad = targetUrl;
+  }
+}
+
+// --- Rest of the unchanged code ---
 function generateRandomString(length) {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
@@ -29,6 +63,7 @@ function generateRandomString(length) {
   }
   return result;
 }
+
 // Function to safely execute JS and return the value
 async function getCosmeticObjectFromRenderer(win) {
     if (!win) {
@@ -156,8 +191,7 @@ async function setPlayerCosmetic(win, slot, filename) {
     return "Successfully Set _ Cosmetic";
   }
 }
-// --- Custom Command Configuration ---
-// This object makes it easy to add new custom commands.
+// --- Custom Command Configuration (UNCHANGED) ---
 const commandConfig = {
   'reload': {
     description: 'Reloads the main app window.',
@@ -195,7 +229,7 @@ const commandConfig = {
           mainWindow.loadURL("https://magiccircle.gg/r/"+roomToJoin);
           return `Room set to: ${roomToJoin}`;
         }
-         else {
+          else {
           return 'Error: No MainWindow';
         }
 
@@ -219,7 +253,7 @@ const commandConfig = {
             return "Error: specified cosmetic slot does not exist";
           }
         }
-         else {
+          else {
           return 'Error: No MainWindow';
         }
 
@@ -243,7 +277,7 @@ const commandConfig = {
           mainWindow.loadURL("https://preview.magiccircle.gg/r/"+roomToJoin);
           return `Room set to: ${roomToJoin}`;
         }
-         else {
+          else {
           return 'Error: No MainWindow';
         }
 
@@ -305,7 +339,7 @@ const commandConfig = {
           mainWindow.webContents.executeJavaScript(`MagicCircle_RoomConnection.sendMessage({"scopePath": ["Room"],"type": "SetPlayerData","name": "${args[0]}"});`);
           return `Player name set to: ${args[0]}`;
         }
-         else {
+          else {
           return 'Error: No MainWindow';
         }
 
@@ -318,13 +352,32 @@ const commandConfig = {
     description: 'Returns an error ',
     // Returns the commandConfig object for structured display in the renderer
     function: () => {
+        mainWindow.loadFile(path.join(__dirname, '../error-page/dist/index.html'));
       return "Error: blank";
     },
     args: []
+  }, 'send-notification': {
+      description: 'Sends a notification as magic garden',
+      function: (args) => {
+          if (args && args.length > 0) {
+              notifier.notify({
+                  title: 'Magic Garden',
+                  message: `From Dev Console: ${args[0]}`,
+                  appID: 'Magic Garden',
+                  icon: path.join(__dirname, 'logo.png'),
+                  sound: true, // Play a sound
+                  wait: false // Don't wait for user interaction
+                });
+              return 'Notification Sent!';
+          } else {
+              return "Error: No Arguments"
+          }
+      },
+      args: ['<message>']
   }
 };
 
-// --- Main App Logic Functions ---
+// --- Main App Logic Functions (UNCHANGED) ---
 
 // 1. insertToApp function (moved to module scope and accepts mainWindow for clarity)
 function insertToApp(win) {
@@ -339,6 +392,9 @@ function insertToApp(win) {
 
 function throwJoinPage(win) {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
+}
+function throwErrorPage(win) {
+    win.loadFile(path.join(__dirname, '../error-page/dist/index.html'));
 }
 
 // 2. Dev Console Window Creation
@@ -399,13 +455,19 @@ const createWindow = () => {
     },
     icon: path.join(__dirname, 'logo.png'),
   });
-  //Load Magic Garden
+  //Load Magic Garden - Loads the deep link URL if one was provided before the window was created
+  const initialUrl = deepLinkUrlToLoad || 'https://magiccircle.gg/';
   mainWindow.webContents.setUserAgent("McDesktopClient");
-  mainWindow.loadURL('https://magiccircle.gg/').then(r => {
-    console.log(r);
-  })
+  mainWindow.loadURL(initialUrl).then(r => {
+    console.log('Initial URL loaded:', initialUrl);
+  }).catch(e => {
+    console.error('Error loading initial URL:', e);
+  });
 
-  // --- IPC Handlers ---
+  // Clear the variable after use
+  deepLinkUrlToLoad = null;
+
+  // --- IPC Handlers (UNCHANGED) ---
 
   // IPC handler for main app's preload.js to run insertToApp
   ipcMain.handle('main-process-function:insertToApp', () => {
@@ -415,11 +477,18 @@ const createWindow = () => {
   });
 
   ipcMain.handle('main-process-function:throwJoinPage', () => {
-      console.log('IPC event received: insertToApp');
+      console.log('IPC event received: Throwing Join Page');
       throwJoinPage(mainWindow);
       return 'insertToApp completed.';
   })
 
+  ipcMain.handle('main-process-function:throwErrorPage', () => {
+      console.log('IPC event received: Error');
+      if (mainWindow.webContents.window.location.pathname !== "index.html") {
+          throwErrorPage(mainWindow);
+      }
+      return 'insertToApp completed.';
+  })
   // IPC handler for Dev Console to execute commands
   ipcMain.handle('dev-console:execute-command', async (event, commandName, args) => {
     try {
@@ -439,7 +508,7 @@ const createWindow = () => {
     }
   });
 
-  // --- Global Shortcuts ---
+  // --- Global Shortcuts (UNCHANGED) ---
 
   app.on('browser-window-focus', function () {
     globalShortcut.register("CommandOrControl+R", async () => {
@@ -473,8 +542,20 @@ const createWindow = () => {
     globalShortcut.unregister('F5');
     globalShortcut.unregister('CommandOrControl+D'); // Unregister Dev Console shortcut
   });
+  // Handle uncaught exceptions in the main process
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception in Main Process:', error);
 
-  // --- Discord RPC Logic ---
+    // Display a custom error page or dialog
+    if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.loadFile(path.join(__dirname, '../error-page/dist/index.html'));
+      // Or show a dialog box
+      // dialog.showErrorBox('Application Error', 'An unexpected error occurred: ' + error.message);
+    }
+    // Optionally, exit the application after displaying the error
+    // app.quit();
+  });
+  // --- Discord RPC Logic (UNCHANGED) ---
   const clientId = '1227719606223765687';
   DiscordRPC.register(clientId);
   const rpc = new DiscordRPC.Client({ transport: 'ipc' });
@@ -516,16 +597,62 @@ const createWindow = () => {
   rpc.login({ clientId }).catch(console.error);
 };
 
-// This method will be called when Electron has finished
-app.whenReady().then(() => {
-  createWindow();
+// --- Protocol Handling and Single Instance Logic ---
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+// Set protocol client for Windows (handle deep links when app is closed)
+if (process.platform === 'win32') {
+    // When the app is launched via deep link, the link is passed as an argument
+    // process.argv[1] is the application path when packed, or index.js when running from source
+    // On Windows, the deep link is one of the commandLine arguments.
+    // The Electron documentation suggests this usage for Windows:
+    // app.setAsDefaultProtocolClient('magic-garden', process.execPath, ['--'])
+    // However, your original approach is common for handling the path correctly after install.
+    app.setAsDefaultProtocolClient('magic-garden', process.execPath, [path.resolve(process.argv[1])]);
+
+    // **NEW:** Check for a deep link URL in the initial command line arguments
+    const deepLinkArg = process.argv.find(arg => arg.startsWith('magic-garden://'));
+    if (deepLinkArg) {
+      deepLinkUrlToLoad = deepLinkArg;
     }
-  });
-});
+} else {
+    // Other platforms (macOS, Linux) use the 'open-url' event, even for the first instance
+    app.setAsDefaultProtocolClient('magic-garden');
+}
+
+
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // A second instance was launched via deep link.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+
+    // The commandLine array contains the arguments, with the deep link usually being the last one
+    // when launched externally on Windows, or somewhere in the middle depending on the OS/setup.
+    // We search for the argument that starts with your custom protocol.
+    const deepLinkArg = commandLine.find(arg => arg.startsWith('magic-garden://'));
+
+    if (deepLinkArg) {
+        handleProtocolUrl(deepLinkArg);
+    }
+  })
+
+  // Create mainWindow, load the rest of the app, etc...
+  app.whenReady().then(() => {
+    createWindow()
+  })
+}
+
+// Handle the protocol on non-Windows platforms (and sometimes Windows for first instance)
+app.on('open-url', (event, url) => {
+    event.preventDefault(); // Must prevent default on macOS
+    handleProtocolUrl(url);
+})
 
 // Quit when all windows are closed, except on macOS.
 app.on('window-all-closed', () => {
