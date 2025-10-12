@@ -1,8 +1,8 @@
 {
   "name": "magic-garden",
-  "productName": "magic-garden",
+  "productName": "Magic Garden Desktop App",
   "version": "0.0.1",
-  "description": "My Electron application description",
+  "description": "The desktop application for Magic Garden, made by Umm12many with some spice mixed in from Avi one of the actual game developers!",
   "main": "src/index.js",
   "scripts": {
     "start": "electron-forge start",
