@@ -603,22 +603,22 @@ const createWindow = () => {
 if (process.platform === 'win32') {
     // When the app is launched via deep link, the link is passed as an argument
     // process.argv[1] is the application path when packed, or index.js when running from source
-    // On Windows, the deep link is one of the commandLine arguments.
-    // The Electron documentation suggests this usage for Windows:
-    // app.setAsDefaultProtocolClient('magic-garden', process.execPath, ['--'])
-    // However, your original approach is common for handling the path correctly after install.
-    app.setAsDefaultProtocolClient('magic-garden', process.execPath, [path.resolve(process.argv[1])]);
+
+    // FIX: Set the protocol client with NO extra arguments.
+    // This ensures that when a deep link is clicked, the URL itself is passed
+    // as the main argument to the new app instance, and the app can be launched
+    // normally without being forced to use an argument.
+    app.setAsDefaultProtocolClient('magic-garden'); // Setting the second and third arguments to their defaults (process.execPath, [])
 
     // **NEW:** Check for a deep link URL in the initial command line arguments
     const deepLinkArg = process.argv.find(arg => arg.startsWith('magic-garden://'));
     if (deepLinkArg) {
-      deepLinkUrlToLoad = deepLinkArg;
+        deepLinkUrlToLoad = deepLinkArg;
     }
 } else {
     // Other platforms (macOS, Linux) use the 'open-url' event, even for the first instance
     app.setAsDefaultProtocolClient('magic-garden');
 }
-
 
 const gotTheLock = app.requestSingleInstanceLock()
 
