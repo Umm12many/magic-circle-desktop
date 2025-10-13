@@ -104,7 +104,8 @@
         }
 
         /**
-         * Parses the command string and sends it to the main process for execution.
+         * Parses the command string, respecting single quotes for string arguments,
+         * and sends it to the main process for execution.
          * @param {string} commandString The raw command input from the user.
          */
         async function executeCommand(commandString) {
@@ -114,13 +115,30 @@
             logToOutput(`> ${commandString}`, 'log-prompt');
 
             try {
-                // Simple space-based parsing. First word is command, rest are arguments.
-                const parts = commandString.trim().split(/\s+/);
+                // --- FIX START: Improved argument parsing to handle quoted strings ---
+                // Regex to split by space, but keeps quoted strings intact.
+                // \s* -> zero or more whitespace characters
+                // ([^'\s]+) -> Capture one or more non-quote, non-whitespace characters (for commands and unquoted args)
+                // |    -> OR
+                // '([^']*)' -> Capture zero or more characters inside single quotes (for quoted strings)
+                const parts = commandString.trim().match(/[^\s']+|'[^']*'/g);
+
+                if (!parts || parts.length === 0) return;
+
+                // The command is the first part
                 const commandName = parts[0];
-                const args = parts.slice(1);
+
+                // Arguments are the rest of the parts
+                const args = parts.slice(1).map(arg => {
+                    // Remove surrounding single quotes from arguments that had them
+                    if (arg.startsWith("'") && arg.endsWith("'")) {
+                        return arg.slice(1, -1);
+                    }
+                    return arg;
+                });
+                // --- FIX END ---
 
                 // 2. Call the main process function exposed by the preload script
-                // window.devConsoleApi is defined in dev-console-preload.js
                 const result = await window.devConsoleApi.executeCommand(commandName, args);
 
                 // 3. Log the result

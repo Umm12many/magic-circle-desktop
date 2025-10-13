@@ -1,7 +1,8 @@
 // See the Electron documentation for details on how to use preload scripts:
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 const { contextBridge, ipcRenderer } = require('electron') // Added ipcRenderer
-const magicCircleDesktopVersion = "Canary0.0.1"
+const magicCircleDesktopVersion = "Canary0.0.1";
+
 contextBridge.exposeInMainWorld('versions', {
   node: () => process.versions.node,
   chrome: () => process.versions.chrome,
@@ -16,11 +17,30 @@ contextBridge.exposeInMainWorld('appApi', {
     throwJoinPage: () => ipcRenderer.invoke('main-process-function:throwJoinPage'),
 })
 
-
+//Allow dev console commands in regular devtools/mgtools:
+// Expose a dedicated API for the Dev Console window
+contextBridge.exposeInMainWorld('devConsoleApi', {
+    /**
+     * Sends a command name and arguments to the main process for execution.
+     * @param {string} command - The command name (e.g., 'reload').
+     * @param {string|string[]} args - A string or Array of string arguments.
+     * @returns {Promise<string|object>} A promise that resolves with the execution result or error message.
+     */
+    executeCommand: (command, args) => {
+        // Ensure args is an array, wrapping it if it's a single string,
+        // or using an empty array if it's null/undefined.
+        const finalArgs = Array.isArray(args) ? args : (args === undefined || args === null ? [] : [args]);
+        return ipcRenderer.invoke('dev-console:execute-command', command, finalArgs);
+    },
+});
+ipcRenderer.invoke('main-process-function:insertToApp')
+    .then(() => console.log('insertToApp executed via IPC on DOMContentLoaded.'))
+    .catch(err => console.error('Failed to run insertToApp via IPC:', err));
 window.addEventListener('DOMContentLoaded', () => {
   // Your injection logic goes here.
   // This code will run every time a new page loads in the BrowserWindow.
   //THX MYKE FOR YOUR CODE IMA PUT IT HERE!
+  /*
   try {
               Object.defineProperty(document, "hidden", {
                   value: false,
@@ -54,9 +74,11 @@ window.addEventListener('DOMContentLoaded', () => {
           }, true);
 
           window.console.log('✅ [IDLE-PREVENTION] Event listeners added with capture phase');
-
+*/
     const injectDiv = () => {
               //<p class="chakra-text css-1491zxh">This room is full.</p>
+              //chakra-text css-18wqe6v
+              //chakra-text.css-ac3ke8
     //Code for room is fuull, adding a text box to join a new room:
     const rfTargetElements = document.querySelectorAll('p.chakra-text.css-1491zxh');
 
@@ -67,6 +89,26 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
+    //Donut text modification:
+    const donutText = document.querySelectorAll('p.chakra-text.css-18wqe6v');
+
+    for (const p of donutText) {
+        // Ensure we've found the correct element by checking its text content.
+        if (p.textContent.trim().startsWith('To purchase')) {
+            p.textContent = "Purchasing donuts is currently not possible in the desktop app, please switch to discord or the IOS app to purchase donuts!";
+        }
+    }
+
+    //Donut text modification:
+    const slimeLovesYouText = document.querySelectorAll('p.chakra-text.css-ac3ke8');
+
+    for (const p of slimeLovesYouText) {
+        // Ensure we've found the correct element by checking its text content.
+        if (p.textContent.trim().startsWith('Magic Circle')) {
+            p.textContent = "Slime loves you!";
+        }
+    }
 
     //Added some versioning stuff:
     // Find all <p> tags with the exact classes you specified.
@@ -148,9 +190,6 @@ window.addEventListener('DOMContentLoaded', () => {
             // Run the check once right after the page loads, in case the element is already present.
             injectDiv();
   // Execute insertToApp in the main process via IPC, as requested
-  window.appApi.insertToApp()
-    .then(() => console.log('insertToApp executed via IPC on DOMContentLoaded.'))
-    .catch(err => console.error('Failed to run insertToApp via IPC:', err));
 
   console.log('DOMContentLoaded event fired! Code has been injected.');
 });

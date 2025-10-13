@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
 const WindowsToaster = require('node-notifier').WindowsToaster;
 
+
 var notifier = new WindowsToaster({
   withFallback: false, // Fallback to Growl or Balloons?
   customPath: undefined // Relative/Absolute path if you want to use your fork of SnoreToast.exe
@@ -362,7 +363,7 @@ const commandConfig = {
           if (args && args.length > 0) {
               notifier.notify({
                   title: 'Magic Garden',
-                  message: `From Dev Console: ${args[0]}`,
+                  message: `${args[0]}`,
                   appID: 'Magic Garden',
                   icon: path.join(__dirname, 'logo.png'),
                   sound: true, // Play a sound
@@ -385,6 +386,9 @@ function insertToApp(win) {
     const cssToInject = fs.readFileSync(path.join(__dirname, 'inject.css'), 'utf8');
     win.webContents.insertCSS(cssToInject);
     console.log('CSS injected.');
+    //Injecting a modified version of MGTools to test notifications, will eventually fix up better system tho:
+    mainWindow.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, 'MGToolsModifiedNotifications.js'), 'utf-8'));
+    console.log('MGTools injected.');
   } catch (error) {
     console.error('Error injecting CSS: Ensure inject.css exists in the same directory.', error.message);
   }
@@ -436,12 +440,37 @@ function createDevConsoleWindow() {
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
+// Define the path to your settings file
+const userDataPath = app.getPath('userData');
+const windowStatePath = path.join(userDataPath, 'window-state.json');
+let windowState = {};
+const defaultBounds = { width: 900, height: 700, x: undefined, y: undefined };
+
+function loadWindowState() {
+    try {
+      const data = fs.readFileSync(windowStatePath, 'utf8');
+      windowState = JSON.parse(data);
+      // Ensure bounds are present, otherwise use defaults
+      if (!windowState.bounds) {
+          windowState.bounds = defaultBounds;
+      }
+    } catch (e) {
+      // File doesn't exist or is invalid, use default state
+      windowState.bounds = defaultBounds;
+      windowState.isMaximized = false;
+    }
+  }
+
 
 const createWindow = () => {
+      loadWindowState();
+
   // Create the browser window.
-  mainWindow = new BrowserWindow({ // Assigned to module-scoped variable
-    width: 800,
-    height: 600,
+  mainWindow = new BrowserWindow({
+      // Assigned to module-scoped variable
+      ...windowState.bounds,
+      // Add other necessary window options here
+      show: false, // Don't show until ready, which helps with re-maximizing
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // Recommended for security
@@ -463,6 +492,44 @@ const createWindow = () => {
   }).catch(e => {
     console.error('Error loading initial URL:', e);
   });
+
+  // Restore maximized state after the window is created and ready
+  mainWindow.once('ready-to-show', () => {
+    if (windowState.isMaximized) {
+      mainWindow.maximize();
+    }
+    mainWindow.show();
+  });
+
+  // Save window state before the window is closed
+  mainWindow.on('close', () => {
+    // 1. Check if the window is currently maximized
+    const isMaximized = mainWindow.isMaximized();
+
+    // 2. If it's maximized, unmaximize it to get the normal bounds
+    if (isMaximized) {
+      mainWindow.unmaximize();
+    }
+
+    // 3. Get the current bounds (width, height, x, y)
+    const bounds = mainWindow.getBounds();
+
+    // 4. Save the state to the JSON object
+    const stateToSave = {
+      bounds: bounds,
+      isMaximized: isMaximized
+    };
+
+    try {
+      fs.writeFileSync(windowStatePath, JSON.stringify(stateToSave));
+    } catch (e) {
+      console.error('Failed to save window state:', e);
+    }
+
+    // Dereference the window object
+    mainWindow = null;
+  });
+
 
   // Clear the variable after use
   deepLinkUrlToLoad = null;
