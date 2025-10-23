@@ -3,6 +3,17 @@ const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
 const WindowsToaster = require('node-notifier').WindowsToaster;
+const admin = require("firebase-admin");
+
+//var serviceAccount = require("./backend-modules/firebase-credentials.json");
+
+//admin.initializeApp({
+  //  credential: admin.credential.cert(serviceAccount),
+  //  databaseURL: "https://public-rooms-default-rtdb.firebaseio.com"
+ // });
+
+// The app only has access as defined in the Security Rules
+//const db = admin.database();
 
 
 var notifier = new WindowsToaster({
@@ -375,6 +386,32 @@ const commandConfig = {
           }
       },
       args: ['<message>']
+  }, 'firebase-pull': {
+      description: 'Inits firebase',
+      function: (args) => {
+          //const ref = db.ref("/public-rooms");
+          // ref.once("value", function(snapshot) {
+            //  console.log(snapshot.val())
+           // return snapshot.val();
+          // });
+              return 'Something Happened';
+      },
+      args: []
+  }, 'firebase-write': {
+      description: 'Sends a notification as magic garden',
+      function: (args) => {
+          if (args && args.length > 0) {
+          //    const ref = db.ref(`/public-rooms/${args[0]}`);
+          // ref.set({
+           //   creator: 'umm12many',
+            //  tags: args[1]
+          // });
+              return 'Data Written!';
+          } else {
+              return "Error: No Arguments"
+          }
+      },
+      args: ['<roomcode> <tags>']
   }
 };
 
@@ -387,8 +424,8 @@ function insertToApp(win) {
     win.webContents.insertCSS(cssToInject);
     console.log('CSS injected.');
     //Injecting a modified version of MGTools to test notifications, will eventually fix up better system tho:
-    mainWindow.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, 'MGToolsModifiedNotifications.js'), 'utf-8'));
-    console.log('MGTools injected.');
+    //mainWindow.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, 'MGToolsModifiedNotifications.js'), 'utf-8'));
+    //console.log('MGTools injected.');
   } catch (error) {
     console.error('Error injecting CSS: Ensure inject.css exists in the same directory.', error.message);
   }
