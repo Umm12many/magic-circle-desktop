@@ -39,42 +39,7 @@ ipcRenderer.invoke('main-process-function:insertToApp')
 window.addEventListener('DOMContentLoaded', () => {
   // Your injection logic goes here.
   // This code will run every time a new page loads in the BrowserWindow.
-  //THX MYKE FOR YOUR CODE IMA PUT IT HERE!
-  /*
-  try {
-              Object.defineProperty(document, "hidden", {
-                  value: false,
-                  writable: false,
-                  configurable: false
-              });
-              Object.defineProperty(document, "visibilityState", {
-                  value: "visible",
-                  writable: false,
-                  configurable: false
-              });
-              window.console.log('✅ [IDLE-PREVENTION] Document properties overridden');
-          } catch (e) {
-            window.console.warn('⚠️ [IDLE-PREVENTION] Could not override document properties:', e);
-          }
 
-          // Block idle detection events with capture phase (highest priority)
-          document.addEventListener("visibilitychange", (e) => {
-              e.stopImmediatePropagation();
-              e.preventDefault();
-          }, true);
-
-          window.addEventListener("blur", (e) => {
-              e.stopImmediatePropagation();
-              e.preventDefault();
-          }, true);
-
-          window.addEventListener("focus", (e) => {
-              e.stopImmediatePropagation();
-              e.preventDefault();
-          }, true);
-
-          window.console.log('✅ [IDLE-PREVENTION] Event listeners added with capture phase');
-*/
     const injectDiv = () => {
               //<p class="chakra-text css-1491zxh">This room is full.</p>
               //chakra-text css-18wqe6v
