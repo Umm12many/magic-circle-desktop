@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Dev Console</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* Minimal, dark-themed styling for a console experience */
         body {
             background-color: #1e1e1e;
             color: #d4d4d4;
@@ -30,6 +30,7 @@
         }
         #input-container {
             display: flex;
+            position: relative;
         }
         #command-input {
             flex-grow: 1;
@@ -62,6 +63,32 @@
         .log-info {
             color: #9cdcfe; /* Light blue for info/result */
         }
+        #autocomplete-suggestions {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            right: 0;
+            background-color: #252525;
+            border: 1px solid #5a5a5a;
+            border-bottom: none;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .suggestion-item {
+            padding: 8px;
+            cursor: pointer;
+        }
+        .suggestion-item:hover, .suggestion-item.active {
+            background-color: #007acc;
+        }
+        .suggestion-item .args {
+            color: #9cdcfe;
+        }
+        .suggestion-item .description {
+            font-style: italic;
+            color: #d4d4d4;
+        }
     </style>
 </head>
 <body>
@@ -70,23 +97,25 @@
         <div class="log-line log-info">Use ESC to close or type 'help' for help.</div>
     </div>
     <div id="input-container">
-        <input type="text" id="command-input" placeholder="Enter command..." autofocus>
+        <div id="autocomplete-suggestions"></div>
+        <input type="text" id="command-input" class="form-control" placeholder="Enter command..." autofocus>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const outputDiv = document.getElementById('output');
         const inputField = document.getElementById('command-input');
+        const suggestionsContainer = document.getElementById('autocomplete-suggestions');
+        let commandHistory = [];
+        let historyIndex = -1;
+        let commandConfig = {};
+        let activeSuggestion = -1;
 
-        /**
-         * Logs a message to the console output area.
-         * @param {string|object} message The content to log.
-         * @param {string} className The CSS class for styling (log-info, log-success, log-error, log-prompt).
-         */
         function logToOutput(message, className = 'log-info') {
             const line = document.createElement('div');
             line.classList.add('log-line', className);
 
-            // Handle structured command list output from the main process
             if (typeof message === 'object' && message !== null && message.commands) {
                 line.innerHTML = '--- Available Commands ---<br>';
                 for (const name in message.commands) {
@@ -95,53 +124,46 @@
                     line.innerHTML += `<span class="log-prompt">${name}</span>${args}: ${cmd.description}<br>`;
                 }
             } else {
-                // Ensure text content for safety
                 line.textContent = message;
             }
 
             outputDiv.appendChild(line);
-            outputDiv.scrollTop = outputDiv.scrollHeight; // Auto-scroll to bottom
+            outputDiv.scrollTop = outputDiv.scrollHeight;
         }
 
-        /**
-         * Parses the command string, respecting single quotes for string arguments,
-         * and sends it to the main process for execution.
-         * @param {string} commandString The raw command input from the user.
-         */
+        async function fetchCommands() {
+            try {
+                const result = await window.devConsoleApi.executeCommand('help');
+                if (result && result.commands) {
+                    commandConfig = result.commands;
+                }
+            } catch (error) {
+                console.error('Failed to fetch commands:', error);
+            }
+        }
+
         async function executeCommand(commandString) {
             if (!commandString.trim()) return;
 
-            // 1. Log the user input immediately
             logToOutput(`> ${commandString}`, 'log-prompt');
+            commandHistory.unshift(commandString);
+            historyIndex = -1;
 
             try {
-                // --- FIX START: Improved argument parsing to handle quoted strings ---
-                // Regex to split by space, but keeps quoted strings intact.
-                // \s* -> zero or more whitespace characters
-                // ([^'\s]+) -> Capture one or more non-quote, non-whitespace characters (for commands and unquoted args)
-                // |    -> OR
-                // '([^']*)' -> Capture zero or more characters inside single quotes (for quoted strings)
-                const parts = commandString.trim().match(/[^\s']+|'[^']*'/g);
-
-                if (!parts || parts.length === 0) return;
-
-                // The command is the first part
+                const parts = commandString.trim().match(/[^\s"']+|"([^"]*)"|'([^']*)'/g) || [];
                 const commandName = parts[0];
-
-                // Arguments are the rest of the parts
                 const args = parts.slice(1).map(arg => {
-                    // Remove surrounding single quotes from arguments that had them
+                    if (arg.startsWith('"') && arg.endsWith('"')) {
+                        return arg.slice(1, -1);
+                    }
                     if (arg.startsWith("'") && arg.endsWith("'")) {
                         return arg.slice(1, -1);
                     }
                     return arg;
                 });
-                // --- FIX END ---
 
-                // 2. Call the main process function exposed by the preload script
                 const result = await window.devConsoleApi.executeCommand(commandName, args);
 
-                // 3. Log the result
                 if (typeof result === 'string' && result.includes('Error:')) {
                     logToOutput(result, 'log-error');
                 } else {
@@ -154,21 +176,97 @@
             }
         }
 
-        // Event listener for the Enter key on the input field
+        function showSuggestions() {
+            const input = inputField.value.trim().toLowerCase();
+            suggestionsContainer.innerHTML = '';
+            if (input === '') return;
+
+            const availableCommands = Object.keys(commandConfig);
+            const suggestions = availableCommands.filter(cmd => cmd.toLowerCase().startsWith(input));
+            suggestions.forEach((suggestion, index) => {
+                const cmd = commandConfig[suggestion];
+                const item = document.createElement('div');
+                item.classList.add('suggestion-item');
+                item.innerHTML = `
+                    <span class="log-prompt">${suggestion}</span>
+                    <span class="args">${cmd.args.length > 0 ? '[' + cmd.args.join('] [') + ']' : ''}</span>
+                    - <span class="description">${cmd.description}</span>
+                `;
+                item.addEventListener('click', () => {
+                    inputField.value = suggestion;
+                    suggestionsContainer.innerHTML = '';
+                });
+                suggestionsContainer.appendChild(item);
+            });
+            activeSuggestion = -1;
+        }
+
+        inputField.addEventListener('input', showSuggestions);
+
         inputField.addEventListener('keydown', (e) => {
+            const suggestions = suggestionsContainer.querySelectorAll('.suggestion-item');
             if (e.key === 'Enter') {
+                if (activeSuggestion > -1 && suggestions[activeSuggestion]) {
+                    inputField.value = suggestions[activeSuggestion].querySelector('.log-prompt').textContent;
+                    suggestionsContainer.innerHTML = '';
+                }
                 const commandString = inputField.value.trim();
                 executeCommand(commandString);
-                inputField.value = ''; // Clear input
+                inputField.value = '';
+                suggestionsContainer.innerHTML = '';
+            } else if (e.key === 'ArrowUp') {
+                if (suggestions.length > 0) {
+                    e.preventDefault();
+                    activeSuggestion = (activeSuggestion - 1 + suggestions.length) % suggestions.length;
+                    updateActiveSuggestion(suggestions);
+                } else if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    inputField.value = commandHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                if (suggestions.length > 0) {
+                    e.preventDefault();
+                    activeSuggestion = (activeSuggestion + 1) % suggestions.length;
+                    updateActiveSuggestion(suggestions);
+                } else if (historyIndex > 0) {
+                    historyIndex--;
+                    inputField.value = commandHistory[historyIndex];
+                } else {
+                    historyIndex = -1;
+                    inputField.value = '';
+                }
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                if (suggestions.length > 0) {
+                    inputField.value = suggestions[activeSuggestion > -1 ? activeSuggestion : 0].querySelector('.log-prompt').textContent;
+                    suggestionsContainer.innerHTML = '';
+                }
             }
         });
 
-        // Event listener for the Escape key to close the console window
+        function updateActiveSuggestion(suggestions) {
+            suggestions.forEach((item, index) => {
+                if (index === activeSuggestion) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-                window.close();
+                suggestionsContainer.innerHTML = '';
             }
         });
+
+        document.addEventListener('click', (e) => {
+            if (!suggestionsContainer.contains(e.target)) {
+                suggestionsContainer.innerHTML = '';
+            }
+        });
+
+        fetchCommands();
     </script>
 </body>
 </html>

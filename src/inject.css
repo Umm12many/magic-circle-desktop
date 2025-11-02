@@ -28,6 +28,23 @@
 :root {
   /*--sait: 40px !important; No Longer needs to be Injected (New Change)*/
 }
+
+
+/*Heres stuff to hack up the settings menu to fit new stuff*/
+.css-n51jeb {
+  width: calc(300% + var(--sail)) !important;
+}
+.css-ip74o3 {
+  flex-direction: row !important;
+}
+.css-140o4e3 {
+  padding: 10px !important;
+}
+.css-1mte1yp {
+  padding: 10px !important;
+}
+
+
 /* Custom styles for the injected console structure (matching preload.js) */
 #custom-console-container {
     position: fixed;

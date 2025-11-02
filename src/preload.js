@@ -1,6 +1,5 @@
-// See the Electron documentation for details on how to use preload scripts:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
-const { contextBridge, ipcRenderer } = require('electron') // Added ipcRenderer
+const { contextBridge, ipcRenderer } = require('electron');
+
 const magicCircleDesktopVersion = "Canary0.0.1";
 
 contextBridge.exposeInMainWorld('versions', {
@@ -8,153 +7,42 @@ contextBridge.exposeInMainWorld('versions', {
   chrome: () => process.versions.chrome,
   electron: () => process.versions.electron,
   magicCircleDesktop: magicCircleDesktopVersion,
-})
+});
 
-// New API exposed for main app functions
 contextBridge.exposeInMainWorld('appApi', {
-    // Expose a function that invokes the main process's insertToApp function
     insertToApp: () => ipcRenderer.invoke('main-process-function:insertToApp'),
     throwJoinPage: () => ipcRenderer.invoke('main-process-function:throwJoinPage'),
-})
+});
 
-//Allow dev console commands in regular devtools/mgtools:
-// Expose a dedicated API for the Dev Console window
 contextBridge.exposeInMainWorld('devConsoleApi', {
-    /**
-     * Sends a command name and arguments to the main process for execution.
-     * @param {string} command - The command name (e.g., 'reload').
-     * @param {string|string[]} args - A string or Array of string arguments.
-     * @returns {Promise<string|object>} A promise that resolves with the execution result or error message.
-     */
     executeCommand: (command, args) => {
-        // Ensure args is an array, wrapping it if it's a single string,
-        // or using an empty array if it's null/undefined.
         const finalArgs = Array.isArray(args) ? args : (args === undefined || args === null ? [] : [args]);
         return ipcRenderer.invoke('dev-console:execute-command', command, finalArgs);
     },
 });
-ipcRenderer.invoke('main-process-function:insertToApp')
+
+const desktopApi = {
+  readFile: (relativePath) => ipcRenderer.invoke('read-file-content', relativePath),
+  settings: {
+    getCurrentDomain: () => ipcRenderer.invoke('settings:get-current-domain'),
+    setDomain: (domain, isBeta) => ipcRenderer.invoke('settings:set-domain', domain, isBeta)
+  }
+};
+contextBridge.exposeInMainWorld('desktopApi', desktopApi);
+
+window.addEventListener('DOMContentLoaded', () => {
+  ipcRenderer.invoke('main-process-function:insertToApp')
     .then(() => console.log('insertToApp executed via IPC on DOMContentLoaded.'))
     .catch(err => console.error('Failed to run insertToApp via IPC:', err));
-window.addEventListener('DOMContentLoaded', () => {
-  // Your injection logic goes here.
-  // This code will run every time a new page loads in the BrowserWindow.
 
-    const injectDiv = () => {
-              //<p class="chakra-text css-1491zxh">This room is full.</p>
-              //chakra-text css-18wqe6v
-              //chakra-text.css-ac3ke8
-    //Code for room is fuull, adding a text box to join a new room:
-    const rfTargetElements = document.querySelectorAll('p.chakra-text.css-1491zxh');
-
-    for (const p of rfTargetElements) {
-        // Ensure we've found the correct element by checking its text content.
-        if (p.textContent.trim().startsWith('This room is full.')) {
-            ipcRenderer.invoke('main-process-function:throwJoinPage')
-        }
-    }
-
-
-    //Donut text modification:
-    const donutText = document.querySelectorAll('p.chakra-text.css-18wqe6v');
-
-    for (const p of donutText) {
-        // Ensure we've found the correct element by checking its text content.
-        if (p.textContent.trim().startsWith('To purchase')) {
-            p.textContent = "Purchasing donuts is currently not possible in the desktop app, please switch to discord or the IOS app to purchase donuts!";
-        }
-    }
-
-    //Donut text modification:
-    const slimeLovesYouText = document.querySelectorAll('p.chakra-text.css-ac3ke8');
-
-    for (const p of slimeLovesYouText) {
-        // Ensure we've found the correct element by checking its text content.
-        if (p.textContent.trim().startsWith('Magic Circle')) {
-            p.textContent = "Slime loves you!";
-        }
-    }
-
-    //Added some versioning stuff:
-    // Find all <p> tags with the exact classes you specified.
-    const targetElements = document.querySelectorAll('p.chakra-text.css-a4hk4l');
-
-    for (const p of targetElements) {
-      // Ensure we've found the correct element by checking its text content.
-      if (p.textContent.trim().startsWith('Server Version:')) {
-        const parent = p.parentElement;
-        if (!parent) continue;
-
-        const grandparent = parent.parentElement;
-        if (!grandparent) continue;
-
-        // Use a unique ID to prevent injecting the info more than once in the same spot.
-        const injectionId = 'electron-version-info-injected';
-        if (grandparent.querySelector(`#${injectionId}electron`)) {
-          continue; // Skip if we've already injected the element here.
-        }
-        if (grandparent.querySelector(`#${injectionId}chrome`)) {
-            continue; // Skip if we've already injected the element here.
-        }
-        if (grandparent.querySelector(`#${injectionId}node`)) {
-            continue; // Skip if we've already injected the element here.
-          }
-        if (grandparent.querySelector(`#${injectionId}mcdesktop`)) {
-            continue; // Skip if we've already injected the element here.
-          }
-        console.log('[Electron Injector] Found target. Injecting version info.');
-
-        // Create the electron version
-        const electronVersion = document.createElement('div');
-        electronVersion.id = injectionId+"electron";
-        electronVersion.className = "McFlex css-1t8agva";
-        // Populate the text!
-        electronVersion.innerHTML = `<p class="chakra-text css-a4hk4l">Electron Version:</p><p class="chakra-text css-t9gick">v${process.versions.electron}</p>`;
-        // Append to the grandparent element.
-        grandparent.appendChild(electronVersion);
-        // Create the chrome version
-        const chromeVersion = document.createElement('div');
-        chromeVersion.id = injectionId+"chrome";
-        chromeVersion.className = "McFlex css-1t8agva";
-        // Populate the text!
-        chromeVersion.innerHTML = `<p class="chakra-text css-a4hk4l">Chrome Version:</p><p class="chakra-text css-t9gick">v${process.versions.chrome}</p>`;
-        // Append to the grandparent element.
-        grandparent.appendChild(chromeVersion);
-        // Create the chrome version
-        const nodeVersion = document.createElement('div');
-        nodeVersion.id = injectionId+"node";
-        nodeVersion.className = "McFlex css-1t8agva";
-        // Populate the text!
-        nodeVersion.innerHTML = `<p class="chakra-text css-a4hk4l">Node Version:</p><p class="chakra-text css-t9gick">v${process.versions.node}</p>`;
-        // Append to the grandparent element.
-        grandparent.appendChild(nodeVersion);
-        const appVersion = document.createElement('div');
-        appVersion.id = injectionId+"mcdesktop";
-        appVersion.className = "McFlex css-1t8agva";
-        // Populate the text!
-        appVersion.innerHTML = `<p class="chakra-text css-a4hk4l">MGDesktop Version:</p><p class="chakra-text css-t9gick">v${magicCircleDesktopVersion}</p>`;
-        // Append to the grandparent element.
-        grandparent.appendChild(appVersion);
+  ipcRenderer.invoke('preload:get-main-injection').then(scriptContent => {
+    if (scriptContent) {
+      try {
+        new Function('require', 'ipcRenderer', 'process', 'desktopApi', scriptContent)(require, ipcRenderer, process, desktopApi);
+        console.log('Successfully loaded main-injection.js.');
+      } catch (error) {
+        console.error('Failed to execute main-injection.js:', error);
       }
     }
-    };
-
-            // A MutationObserver is the most efficient way to watch for DOM changes.
-            const observer = new MutationObserver(() => {
-              // When any change is detected, we run our function to find the element.
-              console.log('[Electron Injector] DOM change detected. Running check...');
-              injectDiv();
-            });
-
-            // Start observing the entire document body for any added or removed nodes.
-            observer.observe(document.body, {
-              childList: true, // Watch for direct children changes
-              subtree: true    // Watch for all descendants
-            });
-
-            // Run the check once right after the page loads, in case the element is already present.
-            injectDiv();
-  // Execute insertToApp in the main process via IPC, as requested
-
-  console.log('DOMContentLoaded event fired! Code has been injected.');
+  }).catch(err => console.error('Failed to get main-injection.js via IPC:', err));
 });

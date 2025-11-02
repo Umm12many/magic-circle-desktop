@@ -3,7 +3,25 @@ const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
 const WindowsToaster = require('node-notifier').WindowsToaster;
-const admin = require("firebase-admin");
+
+const userDataPath = app.getPath('userData');
+const settingsPath = path.join(userDataPath, 'settings.json');
+
+function getSettings() {
+    try {
+        const data = fs.readFileSync(settingsPath, 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        return {
+            domain: 'magiccircle.gg',
+            isBeta: false
+        };
+    }
+}
+
+function saveSettings(settings) {
+    fs.writeFileSync(settingsPath, JSON.stringify(settings));
+}
 
 //var serviceAccount = require("./backend-modules/firebase-credentials.json");
 
@@ -20,9 +38,10 @@ var notifier = new WindowsToaster({
   withFallback: false, // Fallback to Growl or Balloons?
   customPath: undefined // Relative/Absolute path if you want to use your fork of SnoreToast.exe
 });
-app.setAppUserModelId('umm12many.magicgarden');
+app.setAppUserModelId('com.umm12many.magicgarden');
 let mainWindow; // Module-scoped variable to hold the main window
 let devConsoleWindow = null; // New module-scoped variable for the dev console
+let settingsWindow = null;
 
 // Variable to hold the URL from the deep link, if any, before the window is ready
 let deepLinkUrlToLoad = null;
@@ -57,7 +76,7 @@ function handleProtocolUrl(url) {
     // If the main window exists, load the new URL
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
-    mainWindow.loadURL(targetUrl);
+    mainWindow.loadURL(targetUrl).then(() => updateTitle(mainWindow));
   } else {
     // If the window isn't ready yet (e.g., on first launch with a deep link),
     // save the URL to be loaded later in createWindow
@@ -376,7 +395,7 @@ const commandConfig = {
                   title: 'Magic Garden',
                   message: `${args[0]}`,
                   appID: 'Magic Garden',
-                  icon: path.join(__dirname, 'logo.png'),
+                  icon: path.join(__dirname, 'logo.ico'),
                   sound: true, // Play a sound
                   wait: false // Don't wait for user interaction
                 });
@@ -473,12 +492,44 @@ function createDevConsoleWindow() {
   });
 }
 
+function createSettingsWindow() {
+    if (settingsWindow) {
+        if (settingsWindow.isMinimized()) settingsWindow.restore();
+        settingsWindow.focus();
+        return;
+    }
+
+    settingsWindow = new BrowserWindow({
+        width: 400,
+        height: 300,
+        title: "Settings",
+        webPreferences: {
+            preload: path.join(__dirname, 'settings-preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+        parent: mainWindow,
+        modal: true,
+        show: false,
+        autoHideMenuBar: true,
+    });
+
+    settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
+
+    settingsWindow.once('ready-to-show', () => {
+        settingsWindow.show();
+    });
+
+    settingsWindow.on('closed', () => {
+        settingsWindow = null;
+    });
+}
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
 // Define the path to your settings file
-const userDataPath = app.getPath('userData');
 const windowStatePath = path.join(userDataPath, 'window-state.json');
 let windowState = {};
 const defaultBounds = { width: 900, height: 700, x: undefined, y: undefined };
@@ -498,6 +549,24 @@ function loadWindowState() {
     }
   }
 
+
+function updateTitle(win) {
+  if (!win) return;
+  const url = win.webContents.getURL();
+  const isBeta = url.includes('preview.magiccircle.gg') || url.includes('preview.magicgarden.gg');
+  const roomCodeMatch = url.match(/\/r\/(.*)/);
+
+  if (roomCodeMatch) {
+    const roomCode = roomCodeMatch[1];
+    const title = `Magic Garden - ${isBeta ? 'Beta ' : ''}${roomCode}`;
+    win.setTitle(title);
+    win.webContents.send('update-title', title);
+  } else {
+    const title = 'Magic Garden';
+    win.setTitle(title);
+    win.webContents.send('update-title', title);
+  }
+}
 
 const createWindow = () => {
       loadWindowState();
@@ -519,15 +588,25 @@ const createWindow = () => {
       symbolColor: '#fc4eb8',
       height: 40
     },
-    icon: path.join(__dirname, 'logo.png'),
+    icon: path.join(__dirname, 'logo.ico'),
   });
   //Load Magic Garden - Loads the deep link URL if one was provided before the window was created
-  const initialUrl = deepLinkUrlToLoad || 'https://magiccircle.gg/';
+  const { domain, isBeta } = getSettings();
+  let initialUrl = deepLinkUrlToLoad || `https://${isBeta ? 'preview.' : ''}${domain}`;
+  if (domain === 'starweaver.org' && isBeta) {
+    initialUrl = 'https://preview.magiccircle.gg';
+  }
+
   mainWindow.webContents.setUserAgent("McDesktopClient");
   mainWindow.loadURL(initialUrl).then(r => {
     console.log('Initial URL loaded:', initialUrl);
+    updateTitle(mainWindow);
   }).catch(e => {
     console.error('Error loading initial URL:', e);
+  });
+
+  mainWindow.webContents.on('did-navigate', () => {
+    updateTitle(mainWindow);
   });
 
   // Restore maximized state after the window is created and ready
@@ -612,6 +691,36 @@ const createWindow = () => {
     }
   });
 
+  ipcMain.handle('read-file-content', (event, relativePath) => {
+    const filePath = path.join(__dirname, relativePath);
+    try {
+        return fs.readFileSync(filePath, 'utf8');
+    } catch (error) {
+        console.error(`Failed to read file: ${filePath}`, error);
+        return null;
+    }
+  });
+
+  ipcMain.handle('settings:get-current-domain', () => {
+      return getSettings();
+  });
+
+  ipcMain.handle('settings:set-domain', (event, domain, isBeta) => {
+      saveSettings({ domain, isBeta });
+      app.relaunch();
+      app.quit();
+  });
+
+  ipcMain.handle('preload:get-main-injection', () => {
+      const scriptPath = path.join(__dirname, 'preload-scripts', 'main-injection.js');
+      try {
+          return fs.readFileSync(scriptPath, 'utf8');
+      } catch (error) {
+          console.error('Failed to read main-injection.js:', error);
+          return null;
+      }
+  });
+
   // --- Global Shortcuts (UNCHANGED) ---
 
   app.on('browser-window-focus', function () {
@@ -637,6 +746,10 @@ const createWindow = () => {
       createDevConsoleWindow();
       console.log("Opening Dev Console");
     });
+    globalShortcut.register('CommandOrControl+S', () => {
+        createSettingsWindow();
+        console.log("Opening Settings");
+    });
   });
 
   app.on('browser-window-blur', function () {
@@ -645,6 +758,7 @@ const createWindow = () => {
     globalShortcut.unregister('CommandOrControl+M');
     globalShortcut.unregister('F5');
     globalShortcut.unregister('CommandOrControl+D'); // Unregister Dev Console shortcut
+    globalShortcut.unregister('CommandOrControl+S');
   });
   // Handle uncaught exceptions in the main process
   process.on('uncaughtException', (error) => {
