@@ -45,4 +45,16 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }
   }).catch(err => console.error('Failed to get main-injection.js via IPC:', err));
+
+  // Load controller-handler.js
+  ipcRenderer.invoke('preload:get-controller-handler').then(scriptContent => {
+    if (scriptContent) {
+      try {
+        new Function('ipcRenderer', scriptContent)(ipcRenderer); // Pass ipcRenderer to the script
+        console.log('Successfully loaded controller-handler.js.');
+      } catch (error) {
+        console.error('Failed to execute controller-handler.js:', error);
+      }
+    }
+  }).catch(err => console.error('Failed to get controller-handler.js via IPC:', err));
 });

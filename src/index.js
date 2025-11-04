@@ -3,6 +3,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
 const WindowsToaster = require('node-notifier').WindowsToaster;
+const { installNavigatorShim } = require('gamepad-node');
 
 const userDataPath = app.getPath('userData');
 const settingsPath = path.join(userDataPath, 'settings.json');
@@ -10,17 +11,32 @@ const settingsPath = path.join(userDataPath, 'settings.json');
 function getSettings() {
     try {
         const data = fs.readFileSync(settingsPath, 'utf8');
-        return JSON.parse(data);
+        const settings = JSON.parse(data);
+        // Ensure sfxVolume exists, otherwise set default
+        if (settings.sfxVolume === undefined) {
+            settings.sfxVolume = 1.0;
+        }
+        // Ensure disableMods and disableController exist, otherwise set defaults
+        if (settings.disableMods === undefined) {
+            settings.disableMods = false;
+        }
+        if (settings.disableController === undefined) {
+            settings.disableController = false;
+        }
+        return settings;
     } catch (error) {
         return {
             domain: 'magiccircle.gg',
-            isBeta: false
+            isBeta: false,
+            sfxVolume: 1.0, // Default SFX volume
+            disableMods: false, // Default disable mods
+            disableController: false // Default disable controller
         };
     }
 }
 
 function saveSettings(settings) {
-    fs.writeFileSync(settingsPath, JSON.stringify(settings));
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2)); // Added null, 2 for pretty printing
 }
 
 //var serviceAccount = require("./backend-modules/firebase-credentials.json");
@@ -492,39 +508,6 @@ function createDevConsoleWindow() {
   });
 }
 
-function createSettingsWindow() {
-    if (settingsWindow) {
-        if (settingsWindow.isMinimized()) settingsWindow.restore();
-        settingsWindow.focus();
-        return;
-    }
-
-    settingsWindow = new BrowserWindow({
-        width: 400,
-        height: 300,
-        title: "Settings",
-        webPreferences: {
-            preload: path.join(__dirname, 'settings-preload.js'),
-            nodeIntegration: false,
-            contextIsolation: true,
-        },
-        parent: mainWindow,
-        modal: true,
-        show: false,
-        autoHideMenuBar: true,
-    });
-
-    settingsWindow.loadFile(path.join(__dirname, 'settings.html'));
-
-    settingsWindow.once('ready-to-show', () => {
-        settingsWindow.show();
-    });
-
-    settingsWindow.on('closed', () => {
-        settingsWindow = null;
-    });
-}
-
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -554,7 +537,7 @@ function updateTitle(win) {
   if (!win) return;
   const url = win.webContents.getURL();
   const isBeta = url.includes('preview.magiccircle.gg') || url.includes('preview.magicgarden.gg');
-  const roomCodeMatch = url.match(/\/r\/(.*)/);
+  const roomCodeMatch = url.match(/\/r\/([^?#]*)/);
 
   if (roomCodeMatch) {
     const roomCode = roomCodeMatch[1];
@@ -706,9 +689,54 @@ const createWindow = () => {
   });
 
   ipcMain.handle('settings:set-domain', (event, domain, isBeta) => {
-      saveSettings({ domain, isBeta });
+      const settings = getSettings();
+      settings.domain = domain;
+      settings.isBeta = isBeta;
+      saveSettings(settings);
+  });
+
+  ipcMain.handle('settings:get-sfx-volume', () => {
+      return getSettings().sfxVolume;
+  });
+
+  ipcMain.handle('settings:set-sfx-volume', (event, volume) => {
+      const settings = getSettings();
+      settings.sfxVolume = volume;
+      saveSettings(settings);
+      return true; // Indicate success
+  });
+
+  ipcMain.handle('settings:get-mod-settings', () => {
+      const settings = getSettings();
+      return {
+          disableMods: settings.disableMods,
+          disableController: settings.disableController
+      };
+  });
+
+  ipcMain.handle('settings:set-mod-settings', (event, disableMods, disableController) => {
+      const settings = getSettings();
+      settings.disableMods = disableMods;
+      settings.disableController = disableController;
+      saveSettings(settings);
+      return true; // Indicate success
+  });
+
+  ipcMain.on('app:relaunch', () => {
       app.relaunch();
       app.quit();
+  });
+
+  ipcMain.handle('get-audio-base64', (event, filename) => {
+    const audioFilePath = path.join(__dirname, 'audio', filename);
+    try {
+      const fileContent = fs.readFileSync(audioFilePath);
+      const base64 = fileContent.toString('base64');
+      return `data:audio/mpeg;base64,${base64}`;
+    } catch (error) {
+      console.error(`Failed to read or encode audio file: ${audioFilePath}`, error);
+      return null;
+    }
   });
 
   ipcMain.handle('preload:get-main-injection', () => {
@@ -717,6 +745,16 @@ const createWindow = () => {
           return fs.readFileSync(scriptPath, 'utf8');
       } catch (error) {
           console.error('Failed to read main-injection.js:', error);
+          return null;
+      }
+  });
+
+  ipcMain.handle('preload:get-controller-handler', () => {
+      const scriptPath = path.join(__dirname, 'preload-scripts', 'gamepad-preload.js'); // controller-handler.js renamed to gamepad-preload.js but only for now because i need to change code references later
+      try {
+          return fs.readFileSync(scriptPath, 'utf8');
+      } catch (error) {
+          console.error('Failed to read controller-handler.js:', error);
           return null;
       }
   });
@@ -745,10 +783,6 @@ const createWindow = () => {
     globalShortcut.register("CommandOrControl+D", () => {
       createDevConsoleWindow();
       console.log("Opening Dev Console");
-    });
-    globalShortcut.register('CommandOrControl+S', () => {
-        createSettingsWindow();
-        console.log("Opening Settings");
     });
   });
 
@@ -804,6 +838,17 @@ const createWindow = () => {
 
   // Initial call, this will be run at startup, but the preload script will call it again on DOMContentLoaded
   insertToApp(mainWindow);
+
+  ipcMain.handle('gamepad:install-shim', () => {
+      try {
+          const manager = installNavigatorShim();
+          console.log('Gamepad navigator shim installed in main process.');
+          return true;
+      } catch (error) {
+          console.error('Failed to install gamepad navigator shim:', error);
+          return false;
+      }
+  });
 
   rpc.on('ready', () => {
     setActivity();
