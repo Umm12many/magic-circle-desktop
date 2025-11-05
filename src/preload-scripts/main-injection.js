@@ -18,7 +18,20 @@
         panelId = `custom-panel-${title.replace(/\s+/g, '-').toLowerCase()}`;
     }
 
-    if (document.getElementById(tabId)) return; // Tab already exists
+    const existingTab = document.getElementById(tabId);
+    if (existingTab) {
+        const panelId = existingTab.getAttribute('aria-controls');
+        const existingPanel = document.getElementById(panelId);
+        if (existingTab.parentNode) {
+            existingTab.parentNode.removeChild(existingTab);
+        }
+        if (existingPanel && existingPanel.parentNode) {
+            // Only remove the panel if it's a custom one, not a pre-existing one we're linking to
+            if (!existingPanelId) {
+                existingPanel.parentNode.removeChild(existingPanel);
+            }
+        }
+    }
 
     // Create tab button
     const newTabButton = document.createElement('button');
@@ -86,6 +99,8 @@
     }
   }
 
+  desktopApi.addCustomTab = addCustomTab;
+
   function addModTab(title, htmlContent, iconHtml, setupFunction, existingPanelId = null) {
     const creditsTab = document.getElementById('custom-tab-credits');
     addCustomTab(title, htmlContent, "material-symbols " + iconHtml, setupFunction, existingPanelId, creditsTab);
@@ -102,18 +117,19 @@
     const setup = async (panel) => {
         const domainSelect = panel.querySelector('#domain-select');
         const betaCheckbox = panel.querySelector('#beta-checkbox');
+        const disableModsCheckbox = panel.querySelector('#disable-mods-checkbox');
         const sfxVolumeSlider = panel.querySelector('#sfx-volume-slider');
         const saveButton = panel.querySelector('#save-button'); // New
         const saveChangesButton = panel.querySelector('#save-changes-button'); // New
 
-        if (!domainSelect || !betaCheckbox || !sfxVolumeSlider || !saveButton || !saveChangesButton) return; // Updated
+        if (!domainSelect || !betaCheckbox || !disableModsCheckbox || !sfxVolumeSlider || !saveButton || !saveChangesButton) return; // Updated
 
-        // Handle visual state of the switch
-        const updateSwitchVisuals = () => {
-            const track = betaCheckbox.nextElementSibling; // The track span
+
+        function updateSwitchVisuals(checkbox){
+            const track = checkbox.nextElementSibling; // The track span
             if (track && track.classList.contains('chakra-switch__track')) {
                 const thumb = track.querySelector('.chakra-switch__thumb');
-                if (betaCheckbox.checked) {
+                if (checkbox.checked) {
                     track.setAttribute('data-checked', '');
                     if (thumb) {
                         thumb.setAttribute('data-checked', '');
@@ -133,16 +149,19 @@
             if (currentSettings) {
                 domainSelect.value = currentSettings.domain;
                 betaCheckbox.checked = currentSettings.isBeta;
+                disableModsCheckbox.checked = currentSettings.disableMods;
                 currentSfxVolume = currentSettings.sfxVolume !== undefined ? currentSettings.sfxVolume : 1.0; // Update global volume
                 sfxVolumeSlider.value = currentSfxVolume; // Set slider value
-                updateSwitchVisuals();
+                updateSwitchVisuals(betaCheckbox);
+                updateSwitchVisuals(disableModsCheckbox);
             }
         } catch (error) {
             console.error('Failed to load initial settings:', error);
         }
 
         // Add listener for changes
-        betaCheckbox.addEventListener('change', updateSwitchVisuals);
+        betaCheckbox.addEventListener('change', () => updateSwitchVisuals(betaCheckbox));
+        disableModsCheckbox.addEventListener('change', () => updateSwitchVisuals(disableModsCheckbox));
 
         // SFX Volume Slider Listener
         sfxVolumeSlider.addEventListener('input', (event) => {
@@ -161,13 +180,13 @@
         // Handle Save Changes button click
         saveChangesButton.addEventListener('click', async () => {
             await saveSettings();
-            console.log('[MagicGardenController] Settings saved.');
+            console.log('[MagicGardenDesktop] Settings saved.');
         });
 
         // Handle Save and Restart button click
         saveButton.addEventListener('click', async () => {
             await saveSettings();
-            console.log('[MagicGardenController] Settings saved. Relaunching app...');
+            console.log('[MagicGardenDesktop] Settings saved. Relaunching app...');
             desktopApi.app.relaunch(); // Assuming desktopApi.app.relaunch() exists
         });
     };
@@ -463,7 +482,7 @@ function convertMp3ToBase64(mp3File, callback) {
             const tabPanels = document.querySelector('.chakra-tabs__tab-panels');
 
             if (!tabGrid || !tabPanels) {
-                console.log('[MagicGardenController] Tab grid or panels not found yet, retrying repositionAboutTab...');
+                console.log('[MagicGardenDesktop] Tab grid or panels not found yet, retrying repositionAboutTab...');
                 return setTimeout(repositionAboutTab, 500); // Retry after 500ms
             }
 
@@ -476,7 +495,7 @@ function convertMp3ToBase64(mp3File, callback) {
             });
 
             if (!nativeAboutTabButton) {
-                console.log('[MagicGardenController] Native About tab button not found yet, retrying repositionAboutTab...');
+                console.log('[MagicGardenDesktop] Native About tab button not found yet, retrying repositionAboutTab...');
                 return setTimeout(repositionAboutTab, 500); // Retry after 500ms
             }
 
@@ -484,22 +503,21 @@ function convertMp3ToBase64(mp3File, callback) {
             const nativeAboutTabPanel = document.getElementById(nativeAboutTabPanelId);
 
             if (!nativeAboutTabPanel) {
-                console.log('[MagicGardenController] Native About tab panel not found yet, retrying repositionAboutTab...');
+                console.log('[MagicGardenDesktop] Native About tab panel not found yet, retrying repositionAboutTab...');
                 return setTimeout(repositionAboutTab, 500); // Retry after 500ms
             }
 
-            console.log('[MagicGardenController] Native About tab elements found, repositioning...');
-
+            console.log('[MagicGardenDesktop] Native About tab elements found, repositioning...');
             // Remove the native About tab button
             if (nativeAboutTabButton.parentNode) {
                 nativeAboutTabButton.parentNode.removeChild(nativeAboutTabButton);
-                console.log('[MagicGardenController] Native About tab button removed.');
+                console.log('[MagicGardenDesktop] Native About tab button removed.');
             }
             // Do NOT remove the nativeAboutTabPanel
 
             // Add the custom About tab, linking to the existing native panel, always at the bottom
             addCustomTab('About', null, 'material-symbols info', null, nativeAboutTabPanelId);
-            console.log('[MagicGardenController] Custom About tab added, linked to existing panel, at the bottom.');
+            console.log('[MagicGardenDesktop] Custom About tab added, linked to existing panel, at the bottom.');
             aboutTabRepositioned = true; // Set flag to true after successful repositioning
         }
         await repositionAboutTab();
@@ -511,7 +529,7 @@ function convertMp3ToBase64(mp3File, callback) {
                 const isEnabled = await ipcRenderer.invoke('settings:get-mod-enabled', mod.id);
                 if (isEnabled) {
                   if (mod.tabContent) {
-                    // Nothing needed here since we now link to existing panels   
+                    // Nothing needed here since we now pass mod.tabContent directly in a mods main javascript file. Though this might get reworked for when we add User Mods.
                   }
                   try {
                     new Function('require', 'ipcRenderer', 'process', 'desktopApi', 'mod', mod.content)(require, ipcRenderer, process, desktopApi, mod);
@@ -577,18 +595,23 @@ function convertMp3ToBase64(mp3File, callback) {
     }
     };
 
-            // A MutationObserver is the most efficient way to watch for DOM changes.
-            const observer = new MutationObserver(async () => {
-              // When any change is detected, we run our function to find the element.
-              //console.log('[Electron Injector] DOM change detected. Running check...');
-              await injectDiv();
-
-              // Check if the tab list is gone. If so, reset the listener flag.
-              const tabList = document.querySelector('.chakra-tabs__tablist');
-              if (!tabList) {
-                tabListenerAdded = false;
-                aboutTabRepositioned = false; // Reset aboutTabRepositioned flag
-              }
+            const observer = new MutationObserver((mutationsList, observer) => {
+                for(const mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        for (const node of mutation.addedNodes) {
+                            if ((node.matches && node.matches('.chakra-tabs__tablist')) || (node.querySelector && node.querySelector('.chakra-tabs__tablist'))) {
+                                injectDiv();
+                                return;
+                            }
+                        }
+                        for (const node of mutation.removedNodes) {
+                            if ((node.matches && node.matches('.chakra-tabs__tablist')) || (node.querySelector && node.querySelector('.chakra-tabs__tablist'))) {
+                                tabListenerAdded = false;
+                                aboutTabRepositioned = false;
+                            }
+                        }
+                    }
+                }
             });
 
             // Start observing the entire document body for any added or removed nodes.
@@ -597,8 +620,7 @@ function convertMp3ToBase64(mp3File, callback) {
               subtree: true    // Watch for all descendants
             });
 
-            // Run the check once right after the page loads, in case the element is already present.
-            injectDiv();
+
   // Execute insertToApp in the main process via IPC, as requested
 
     const updateTitleFromUrl = () => {

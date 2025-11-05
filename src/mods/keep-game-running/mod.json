@@ -1,0 +1,7 @@
+{
+  "name": "Keep Game Running Mod",
+  "description": "Prevents the game from pausing when the window loses focus or the tab becomes hidden.",   
+  "author": "Norman",
+  "file": "main.js",
+  "icon": "domino_mask"
+}

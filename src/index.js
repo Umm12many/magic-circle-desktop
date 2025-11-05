@@ -3,7 +3,6 @@ const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
 const WindowsToaster = require('node-notifier').WindowsToaster;
-const { installNavigatorShim } = require('gamepad-node');
 
 const userDataPath = app.getPath('userData');
 const settingsPath = path.join(userDataPath, 'settings.json');
@@ -925,17 +924,6 @@ const createWindow = () => {
 
   // Initial call, this will be run at startup, but the preload script will call it again on DOMContentLoaded
   insertToApp(mainWindow);
-
-  ipcMain.handle('gamepad:install-shim', () => {
-      try {
-          const manager = installNavigatorShim();
-          console.log('Gamepad navigator shim installed in main process.');
-          return true;
-      } catch (error) {
-          console.error('Failed to install gamepad navigator shim:', error);
-          return false;
-      }
-  });
 
   rpc.on('ready', () => {
     setActivity();

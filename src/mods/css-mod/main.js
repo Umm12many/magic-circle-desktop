@@ -1,8 +1,4 @@
-// Prevent re-initialization
-if (window.cssModInitialized) {
-  return;
-}
-window.cssModInitialized = true;
+
 
 const MOD_ID = 'css-mod';
 
@@ -25,7 +21,8 @@ const setupCssMod = async () => {
   console.log(`[${MOD_ID}] Retrieved CSS files:`, cssFiles);
 
   // Add the mod tab, passing mod.tabContent directly
-  desktopApi.addModTab('CSS Mod Settings', mod.tabContent, mod.icon, (panel) => {
+  const creditsTab = document.getElementById('custom-tab-credits');
+  desktopApi.addCustomTab('CSS Mod Settings', mod.tabContent, "material-symbols " + mod.icon, (panel) => {
     console.log(`[${MOD_ID}] Mod tab setup function executed.`);
     const modsContainer = panel.querySelector('#mods-container');
     const switchTemplate = panel.querySelector('#css-mod-switch-template');

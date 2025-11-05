@@ -1,45 +1,127 @@
-// ==UserScript==
-// @name         Magic Garden Controller
-// @description  Controller
-// @version      2.0
-// @match        https://magiccircle.gg/r/*
-// @match        https://magicgarden.gg/r/*
-// @match        https://starweaver.org/r/*
-// @grant        none
-// ==/UserScript==
+function nowMs(){ return performance.now(); }
+function visible(el){ if(!el) return false; const r=el.getBoundingClientRect(); return !!(r.width||r.height); }
+function isTyping(){ const a=document.activeElement; if(!a) return false; const t=(a.tagName||'').toLowerCase(); return t==='input'||t==='textarea'||a.isContentEditable===true; }
 
-/* === Magic Garden Controller (v40) ===
+// Hard key tap (keydown+keyup)
+function hardTapKey(code, key, keyCode){
+    console.log(`Hard tapping key: ${key}`); // Debug log
+    const target = document.activeElement || document.body || document;
+    const init = { key, code, keyCode, which:keyCode, bubbles:true, cancelable:true, composed:true, repeat:false, location:0 };
+    try{ target.dispatchEvent(new KeyboardEvent('keydown', init)); }catch(_){}
+    try{ target.dispatchEvent(new KeyboardEvent('keyup', init)); }catch(_){}
+}
+const tapX = () => hardTapKey('KeyX','x',88);
+const tapC = () => hardTapKey('KeyC','c',67);
+
+// ---- Route/Teleport lock ----
+let lockUntil = 0;
+function lockFor(ms){ if(ms>0) lockUntil = Math.max(lockUntil, nowMs()+ms); }
+function locked(){ return nowMs() < lockUntil; }
+
+(function hookSPA(){
+    try{
+      const ps = history.pushState, rs = history.replaceState;
+      history.pushState = function(){ lockFor(CONFIG.ROUTE_LOCK_MS); return ps.apply(this, arguments); };
+      history.replaceState = function(){ lockFor(CONFIG.ROUTE_LOCK_MS); return rs.apply(this, arguments); };
+      addEventListener('popstate', function(){ lockFor(CONFIG.ROUTE_LOCK_MS); }, {passive:true, capture:true});
+    }catch(_){}
+    let last = location.href;
+    setInterval(function(){ if(location.href!==last){ last=location.href; lockFor(CONFIG.ROUTE_LOCK_MS); }}, 250);
+})();
+
+// Risky key filter
+const RISKY = new Set([
+    'KeyX','KeyC',
+    'Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7','Digit8','Digit9',
+    'Numpad1','Numpad2','Numpad3','Numpad4','Numpad5','Numpad6','Numpad7','Numpad8','Numpad9',
+]);
+function riskyKey(e){ const code=e.code||''; const k=(e.key||'').toLowerCase(); return RISKY.has(code) || (!!k && '123456789xc'.indexOf(e.key)>=0); }
+
+function swallowKey(e){ if(!locked()) return; if(!riskyKey(e)) return; e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); }
+addEventListener('keydown', swallowKey, true);
+addEventListener('keyup', swallowKey, true);
+addEventListener('keypress', swallowKey, true);
+
+function isAllowedTarget(t){
+    try { for(const sel of CONFIG.NAV_ALLOW_SELECTORS){ if(t && t.closest && t.closest(sel)) return true; } } catch(_){}
+    try {
+      const btn = t && t.closest && t.closest('a,button,[role="button"]');
+      if(btn && visible(btn)){
+        const txt=(btn.textContent||'').toLowerCase();
+        if(CONFIG.NAV_TEXT_MATCH.shop.some(s=>txt.includes(s))) return true;
+        if(CONFIG.NAV_TEXT_MATCH.garden.some(s=>txt.includes(s))) return true;
+        if(CONFIG.NAV_TEXT_MATCH.sell.some(s=>txt.includes(s))) return true;
+      }
+    } catch(_){}
+    return false;
+}
+
+function swallowPtr(e){ if(!locked()) return; if(isAllowedTarget(e.target)) return; e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); }
+['mousedown','mouseup','click','pointerdown','pointerup','touchstart','touchend'].forEach(function(t){ addEventListener(t, swallowPtr, true); });
+
+// ---- UI nav helpers ----
+function clickTopNav(which){
+    console.log(`Clicking top nav: ${which}`); // Debug log
+    for(const sel of CONFIG.NAV_ALLOW_SELECTORS){
+      const btn = document.querySelector(sel);
+      if(btn && visible(btn)){ btn.click(); return true; }
+    }
+    const wants = CONFIG.NAV_TEXT_MATCH[which] || [];
+    const cand = Array.from(document.querySelectorAll('a,button,[role="button"]'));
+    for(const el of cand){
+      if(!visible(el)) continue;
+      const t=(el.textContent||'').toLowerCase();
+      if(wants.some(w=>t.includes(w))){ el.click(); return true; }
+    }
+    return false;
+}
+
+function teleport(which){
+    console.log(`Teleporting to: ${which}`); // Debug log
+    lockFor(CONFIG.TELEPORT_LOCK_MS);
+    try{ document.activeElement && document.activeElement.blur(); }catch(_){}
+    clickTopNav(which);
+}
+// --- END ADDED ---
+
+
+/* === Magic Garden Controller (v40-Multiplayer) ===
  * - Input lock: D-pad vs Left-stick. No drift double-triggers.
  * - Crops shop: canonical vertical order (UP=prev, DOWN=next); L/R disabled; wrap; **no R-stick scroll**.
  * - Eggs/Tools shop: product↔price hops; R-stick scroll OK.
- *   • Reverted coin-click behavior to previous logic (no forced re-focus after price click).
+ * • Reverted coin-click behavior to previous logic (no forced re-focus after price click).
  * - Inventory:
- *   • Open: focus starts at slot 1 **without equipping** (hotbar selection preserved).
- *   • 2D wrap (row/col). Favorite heart buttons are skipped.
- *   • **LB/RB jump** between **favorited** tiles only (NOT just "can be favorited").
- *     Favorited detection: the tile's heart button has a red heart SVG
- *     (e.g. `.css-x3b2a6` → `svg.css-17xvong`) or `aria-pressed="true"`.
+ * • Open: focus starts at slot 1 **without equipping** (hotbar selection preserved).
+ * • 2D wrap (row/col). Favorite heart buttons are skipped.
+ * • **LB/RB jump** between **favorited** tiles only (NOT just "can be favorited").
+ * Favorited detection: the tile's heart button has a red heart SVG
+ * (e.g. `.css-x3b2a6` → `svg.css-17xvong`) or `aria-pressed="true"`.
  * - World Box Mode: strict directional moves; if no neighbor in that direction, focus stays put.
  * - Selected pets remain focusable (so you can move onto them and click to unequip).
  * - Pet-first default when entering Box Mode; else random; else top-left.
  * - Hotbar (live-parsed):
- *     • LB/RB step only through occupied slots; empties ignored.
- *     • From no selection, RB → first occupied; LB → last occupied.
- *     • Edges leave (deselect) the hotbar.
- *     • Auto-refreshes as items change in the DOM (e.g., harvesting adds a new slot).
- * - Combos: RT+A = Shift+1, LT+A = Shift+2, RT+LT+A = Shift+3.
+ * • LB/RB step only through occupied slots; empties ignored.
+ * • From no selection, RB → first occupied; LB → last occupied.
+ * • Edges leave (deselect) the hotbar.
+ * • Auto-refreshes as items change in the DOM (e.g., harvesting adds a new slot).
+ * - Combos: **REMOVED** RT+A, LT+A, RT+LT+A combos.
  * - Journal overlay (Crops/Pets): movement blocked outside; Box Mode forced; **green outline**; LB/RB toggles tabs.
  * - "Are you sure?" dialog: Box Mode forced; only 2 choices; default = "Go to journal"; B = close; **yellow outline**.
  * - Donuts overlay (.css-1qcme2z): overrides everything; A or B = close (X).
  * - Minor popups (e.g. "...failed!" with .css-49qew8 close): **press L3** to close.
- *   • **Press L3+R3 together** to click the **SystemHeaderPlayerToken** button (opens the profile drawer).
+ * • **Press L3+R3 together** to click the **SystemHeaderPlayerToken** button (opens the profile drawer).
  * - NEW: Profile Drawer (SystemHeaderPlayerToken / #ProfileDrawer):
- *   • Box Mode forced; blocks world input like Pause.
- *   • A = interact (click); B = back/close; auto-focus sensible default.
+ * • Box Mode forced; blocks world input like Pause.
+ * • A = interact (click); B = back/close; auto-focus sensible default.
  * - HUD/buttons explicitly excluded from Box Mode scanning (per your lists).
+ * - **NEW**: Added teleport lock system.
+ * - **NEW**: Crop cycling (X/C) is ONLY on Right Stick X-Axis now.
+ * - **NEW**: **Triggers are now for teleport:** RT=Shop, LT=Garden, RT+LT=Sell.
+ * - **NEW**: Start button also opens dev console.
+ * - **NEW (v2.2)**: Multi-controller support.
+ * - Aggregates world movement (WASD/Space) from all controllers.
+ * - Allows UI navigation (Box Mode) from any controller.
  */
-(() => {
-  /* ---------- config ---------- */
   const CONFIG = {
     MOVE_KEYS: {
       up:   { code: 'KeyW', key: 'w', keyCode: 87 },
@@ -76,10 +158,33 @@
 
     // World move cone strictness
     WORLD_DIR_DOT_MIN: 0.75,
+
+    // --- ADDED from controller-handler-old-but-new.js ---
+    // Right Stick horizontal axis (explicit crop cycling)
+    RS_X_AXIS: 2,      // Standard XInput Right Stick X
+    RS_DZ: 0.5,        // deadzone for RS left/right
+    RS_REQUIRE_CENTER: true, // must recenter
+
+    // Lock windows
+    ROUTE_LOCK_MS: 1500,
+    TELEPORT_LOCK_MS: 50,
+
+    // Allowed nav selectors
+    NAV_ALLOW_SELECTORS: [
+      'button[data-nav="shop"]',
+      'button[data-nav="garden"]',
+      'button[data-nav="sell"]',
+    ],
+    NAV_TEXT_MATCH: {
+      shop:   ['shop'],
+      garden: ['my garden','garden'],
+      sell:   ['sell'],
+    },
+    // --- END ADDED ---
   };
   const BTN = { A:0,B:1,X:2,Y:3,LB:4,RB:5,LT:6,RT:7,SELECT:8,START:9,LSTICK:10,RSTICK:11,DPAD_UP:12,DPAD_DOWN:13,DPAD_LEFT:14,DPAD_RIGHT:15 };
 
-  console.log('[MagicGardenController] Starting v40 - DEBUG VERSION...');
+  console.log('[MagicGardenController] Starting Magic Garden Controller v??-Desktop.');
 
   // Enhanced debug function - can be called from browser console: window.MagicGardenController.debug()
   const debugShop = () => {
@@ -195,6 +300,7 @@
     if(on && !held){ activeKeys.set(k,{spec,mods}); keyDown(spec,mods); }
     if(!on && held){ activeKeys.delete(k); keyUp(spec,mods); }
   };
+  // tapShiftDigit is no longer used by default, but kept for debugging
   const tapShiftDigit = (n)=>{
     const S={ code:'ShiftLeft', key:'Shift', keyCode:16 }, D=digitSpec(n);
     keyDown(S,{shiftKey:true}); keyDown(D,{shiftKey:true}); keyUp(D,{shiftKey:true}); keyUp(S);
@@ -278,11 +384,10 @@
   const boxModeAuto=()=>inventoryOpen||pauseOpen||shopOpen||confirmOpen||donutsOpen||journalOpen||profileOpen;
   const boxMode=()=>boxModeManual||boxModeAuto();
 
-  // Focus ring themes
-  if(!document.getElementById('mgc-focus-style')){
-    const st=document.createElement('style');
-    st.id='mgc-focus-style';
-    st.textContent=`
+  // Focus ring themes & Input Switching
+  const mgcFocusStyleId = 'mgc-focus-style';
+  let mgcFocusStyleElement = document.getElementById(mgcFocusStyleId);
+  const mgcFocusStyleContent = `
       .mgc-focus-ring{
         outline:3px solid #fff!important;
         outline-offset:2px!important;
@@ -304,67 +409,50 @@
         border-radius:12px!important;
       }
     `;
+
+  if(!mgcFocusStyleElement){
+    const st=document.createElement('style');
+    st.id=mgcFocusStyleId;
+    st.textContent=mgcFocusStyleContent;
     document.head.appendChild(st);
+    mgcFocusStyleElement = st;
   }
 
-  // Controller Hints
-  let controllerHintsCreated = false;
-  function manageControllerHints(show) {
-    if (show) {
-      if (controllerHintsCreated) {
-        document.getElementById('mgc-controller-hints-style').style.display = '';
-        document.getElementById('hint-garden').style.display = '';
-        document.getElementById('hint-shop').style.display = '';
-        document.getElementById('hint-sell').style.display = '';
-      } else {
-        const hintsStyle = document.createElement('style');
-        hintsStyle.id = 'mgc-controller-hints-style';
-        hintsStyle.textContent = `
-          .controller-hint {
-            position: fixed;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 14px;
-            z-index: 9999;
-            pointer-events: none;
-          }
-          #hint-garden { top: 10px; left: 10px; }
-          #hint-shop { top: 50px; left: 10px; }
-          #hint-sell { top: 90px; left: 10px; }
-        `;
-        document.head.appendChild(hintsStyle);
+  let usingGamepad = true;
 
-        const hintGarden = document.createElement('div');
-        hintGarden.id = 'hint-garden';
-        hintGarden.className = 'controller-hint';
-        hintGarden.textContent = 'L-Stick Click: My Garden';
-        document.body.appendChild(hintGarden);
+  function switchToKeyboard() {
+    if (!usingGamepad) return;
+    console.log('[MagicGardenController] Switching to Keyboard input mode.');
+    usingGamepad = false;
+    if (mgcFocusStyleElement) mgcFocusStyleElement.textContent = '';
+    UI.clearFocus();
+    releaseAllHeldKeys();
+    if (boxModeManual) boxModeManual = false;
+  }
 
-        const hintShop = document.createElement('div');
-        hintShop.id = 'hint-shop';
-        hintShop.className = 'controller-hint';
-        hintShop.textContent = 'Left Trigger: Shop';
-        document.body.appendChild(hintShop);
+  function switchToGamepad() {
+    if (usingGamepad) return;
+    console.log('[MagicGardenController] Switching to Gamepad input mode.');
+    usingGamepad = true;
+    if (mgcFocusStyleElement) mgcFocusStyleElement.textContent = mgcFocusStyleContent;
+  }
 
-        const hintSell = document.createElement('div');
-        hintSell.id = 'hint-sell';
-        hintSell.className = 'controller-hint';
-        hintSell.textContent = 'Right Trigger: Sell';
-        document.body.appendChild(hintSell);
-        controllerHintsCreated = true;
-      }
-    } else {
-      if (controllerHintsCreated) {
-        document.getElementById('mgc-controller-hints-style').style.display = 'none';
-        document.getElementById('hint-garden').style.display = 'none';
-        document.getElementById('hint-shop').style.display = 'none';
-        document.getElementById('hint-sell').style.display = 'none';
+  window.addEventListener('keydown', (e) => {
+    if (e.isTrusted && !e.repeat) {
+      const isEmulatedKey = Object.values(CONFIG.MOVE_KEYS).some(k => k.code === e.code) ||
+                            ['Space', 'Escape', 'KeyE', 'KeyX', 'KeyC'].includes(e.code) ||
+                            /Digit[1-9]/.test(e.code);
+      if (!isEmulatedKey) {
+        switchToKeyboard();
       }
     }
-  }
-  manageControllerHints(true);
+  }, true);
+
+  window.addEventListener('mousedown', (e) => {
+    if (e.isTrusted) {
+      switchToKeyboard();
+    }
+  }, true);
 
   /* ---------- UI module ---------- */
   const UI = (() => {
@@ -1169,80 +1257,6 @@
     if(!profileOpen && wasProfile){ UI.clearFocus(); }
 
   });
-
- // Focus ring themes & Input Switching
-  const mgcFocusStyleId = 'mgc-focus-style';
-  let mgcFocusStyleElement = document.getElementById(mgcFocusStyleId);
-  const mgcFocusStyleContent = `
-      .mgc-focus-ring{
-        outline:3px solid #fff!important;
-        outline-offset:2px!important;
-        border-radius:10px!important;
-        box-shadow:0 0 0 1px rgba(255,255,255,.15), 0 0 8px rgba(255,255,255,.25);
-        transition:outline-color .08s linear, box-shadow .12s ease;
-      }
-      .mgc-focus-ring[data-mgc-danger="1"]{ outline-color:#f33!important; box-shadow:0 0 0 2px rgba(255,51,51,.25), 0 0 10px rgba(255,51,51,.45); }
-      .mgc-confirm-on .mgc-focus-ring{
-        outline-color:#ffd83b!important;
-        box-shadow:0 0 0 2px rgba(255,216,59,.3), 0 0 12px rgba(255,216,59,.6), inset 0 0 0 1px rgba(255,255,255,.1);
-      }
-      .mgc-journal-on .mgc-focus-ring{
-        outline-color:#34d399!important;
-        box-shadow:
-          0 0 0 2px rgba(52,211,153,.28),
-          0 0 14px rgba(16,185,129,.55),
-          inset 0 0 0 1px rgba(255,255,255,.12);
-        border-radius:12px!important;
-      }
-    `;
-
-  if(!mgcFocusStyleElement){
-    const st=document.createElement('style');
-    st.id=mgcFocusStyleId;
-    st.textContent=mgcFocusStyleContent;
-    document.head.appendChild(st);
-    mgcFocusStyleElement = st;
-  }
-
-  let usingGamepad = true;
-
-  function switchToKeyboard() {
-    if (!usingGamepad) return;
-    console.log('[MagicGardenController] Switching to Keyboard input mode.');
-    usingGamepad = false;
-    if (mgcFocusStyleElement) mgcFocusStyleElement.textContent = '';
-    UI.clearFocus();
-    releaseAllHeldKeys();
-    if (boxModeManual) boxModeManual = false;
-    manageControllerHints(false);
-  }
-
-  function switchToGamepad() {
-    if (usingGamepad) return;
-    console.log('[MagicGardenController] Switching to Gamepad input mode.');
-    usingGamepad = true;
-    if (mgcFocusStyleElement) mgcFocusStyleElement.textContent = mgcFocusStyleContent;
-    manageControllerHints(true);
-  }
-
-  window.addEventListener('keydown', (e) => {
-    if (e.isTrusted && !e.repeat) {
-      const isEmulatedKey = Object.values(CONFIG.MOVE_KEYS).some(k => k.code === e.code) ||
-                            ['Space', 'Escape', 'KeyE', 'KeyX', 'KeyC'].includes(e.code) ||
-                            /Digit[1-9]/.test(e.code);
-      if (!isEmulatedKey) {
-        switchToKeyboard();
-      }
-    }
-  }, true);
-
-  window.addEventListener('mousedown', (e) => {
-    if (e.isTrusted) {
-      switchToKeyboard();
-    }
-  }, true);
-
-
   mo.observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
 
   function setOutlineMode(){
@@ -1276,302 +1290,365 @@
 
   /* ---------- input loop ---------- */
   const btnPressed=(gp,idx,thr=0.5)=>{ const b=gp.buttons[idx]; return (typeof b==='object')?(b.pressed||b.value>thr):(b>thr); };
-
-  let navLock = null; // 'dpad' | 'stick' | null
-  let navLockLastActive = 0;
-
+  
   const releaseAllHeldKeys=()=>{ for(const {spec,mods} of activeKeys.values()) keyUp(spec,mods); activeKeys.clear(); };
 
   const makeRep=()=>({ x:0, y:0, tX:0, tY:0 });
-  const repD = makeRep();
-  const repS = makeRep();
-
-  let lastButtons=[], lastRB=0,lastLB=0;
-  let lastFrame=performance.now();
-
-  const rightStickScroll = (gp, dt)=>{
-    if(!shopOpen) return;
-    if(UI.isCropsShop()) return; // disabled in crops
-    const ry = gp.axes[3]||0;
-    if(Math.abs(ry) > CONFIG.SHOP_SCROLL_STICK_DZ){
-      const px = Math.max(-CONFIG.SHOP_SCROLL_MAXSTEP_PX, Math.min(CONFIG.SHOP_SCROLL_MAXSTEP_PX, ry * CONFIG.SHOP_SCROLL_SPEED_PX_PER_SEC * dt));
-      if(Math.abs(px) > 0.5) UI.scrollShopBy(px);
-    }
-  };
-
+  
   const quantizeStick = (val, prev, on=CONFIG.UI_STICK_DZ, off=CONFIG.UI_STICK_RELEASE_DZ)=>{
     if(prev===0){ if(val>on) return +1; if(val<-on) return -1; return 0; }
     if(prev>0){ return (val<off)?0:+1; } else { return (val>-off)?0:-1; }
   };
 
-  let qStickX=0, qStickY=0;
+  // --- Multi-controller State ---
+  const controllerStates = new Map();
+  
+  function getControllerState(index) {
+    if (!controllerStates.has(index)) {
+      controllerStates.set(index, {
+        lastButtons: [],
+        lastRB: 0, lastLB: 0,
+        lastLT: false, lastRT: false,
+        lastRSsign: 0,
+        navLock: null, navLockLastActive: 0,
+        repD: makeRep(), repS: makeRep(),
+        qStickX: 0, qStickY: 0,
+        lastFrame: performance.now(),
+      });
+    }
+    return controllerStates.get(index);
+  }
+  // --- End Multi-controller State ---
+
 
   const loop=()=>{
     const pads=navigator.getGamepads?Array.from(navigator.getGamepads()):[];
-    const gp=pads.find(p=>p&&p.connected);
-    if(!gp){ releaseAllHeldKeys(); lastButtons=[]; requestAnimationFrame(loop); return; }
-
-    // Auto-switch back to gamepad
-    if (!usingGamepad) {
-        const isAnyButtonPressed = gp.buttons.some(b => b.pressed);
-        const isAnyAxisMoved = gp.axes.some(a => Math.abs(a) > CONFIG.DEADZONE);
-        if (isAnyButtonPressed || isAnyAxisMoved) {
-            switchToGamepad();
-        } else {
-            requestAnimationFrame(loop);
-            return; // Don't run the rest of the loop if in keyboard mode
-        }
-    }
-
-    const now=performance.now();
-    const dt=(now-lastFrame)/1000;
-    lastFrame=now;
-
-    const b=(i)=>btnPressed(gp,i);
-    const prev=lastButtons; lastButtons=gp.buttons.map((_,i)=>b(i));
-    const inBox=boxMode();
-
-    // Teleportation
-    const LSTICK_now = b(BTN.LSTICK);
-    const LSTICK_prev = prev[BTN.LSTICK] || false;
-    const LT_now = btnPressed(gp, BTN.LT, 0.2);
-    const LT_prev = prev[BTN.LT];
-    const RT_now = btnPressed(gp, BTN.RT, 0.2);
-    const RT_prev = prev[BTN.RT];
-
-    if (LSTICK_now && !LSTICK_prev) {
-        const gardenButton = Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('My Garden'));
-        if (gardenButton) gardenButton.click();
-    }
-
-    if (LT_now && !LT_prev) {
-        const shopButton = Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Shop'));
-        if (shopButton) shopButton.click();
-    }
-
-    if (RT_now && !RT_prev) {
-        const sellButton = Array.from(document.querySelectorAll('button')).find(button => button.textContent.includes('Sell'));
-        if (sellButton) sellButton.click();
-    }
-
-    // SELECT -> toggle Box Mode (ignored if panels already force it)
-    const SELECT_now=b(BTN.SELECT), SELECT_prev=prev[BTN.SELECT]||false;
-    if(SELECT_now && !SELECT_prev){
-      if(!inventoryOpen && !pauseOpen && !shopOpen && !confirmOpen && !donutsOpen && !journalOpen && !profileOpen){
-        boxModeManual=!boxModeManual;
-        if(boxMode()){
-          releaseAllHeldKeys();
-          UI.scan(true);
-          UI.focusTopMostPet?.() || UI.focusRandomCandidate?.() || UI.focusTopLeft();
-        } else {
-          UI.clearFocus();
-        }
-      }
-    }
-
-    // Minor popups & header token:
-    const L3_now=b(BTN.LSTICK), R3_now=b(BTN.RSTICK);
-    const L3_prev=prev[BTN.LSTICK]||false, R3_prev=prev[BTN.RSTICK]||false;
-
-    // If BOTH pressed (rising together) -> click SystemHeaderPlayerToken button
-    if(L3_now && R3_now && !(L3_prev && R3_prev)){
-      UI._clickHeaderTokenButton();
-    } else if (L3_now && !L3_prev && !R3_now) {
-      // L3 alone -> close any minor popup
-      const closes = UI._findMinorPopupCloseBtns();
-      if(closes.length){ closes[0].click(); }
-    } else if (R3_now && !R3_prev && !L3_now && inventoryOpen) {
-      // R3 alone in inventory -> left mouse click on focused element
-      const el = UI.scan()[UI._getCurrentIndex()];
-      if(el) {
-        const rect = el.getBoundingClientRect();
-        const clickX = rect.left + rect.width / 2;
-        const clickY = rect.top + rect.height / 2;
-        const mouseEvent = new MouseEvent('click', {
-          view: window,
-          bubbles: true,
-          cancelable: true,
-          clientX: clickX,
-          clientY: clickY,
-          button: 0
-        });
-        el.dispatchEvent(mouseEvent);
-      }
-    }
-
-    // A: combos and clicks (donuts hijacks A)
-    const A_now=b(BTN.A), A_prev=prev[BTN.A]||false;
-    if(A_now && !A_prev && donutsOpen){
-      UI._clickDonutsClose();
-    } else if(!inBox){
-      if(A_now && !A_prev){
-        if(LT_now && RT_now)      tapShiftDigit(3); // RT+LT+A => Shift+3
-        else if(RT_now)           tapShiftDigit(1); // RT+A => Shift+1
-        else if(LT_now)           tapShiftDigit(2); // LT+A => Shift+2
-        else                      setHeld(CONFIG.A_KEY,true);
-      }
-      if(!A_now && A_prev) setHeld(CONFIG.A_KEY,false);
-    } else if(A_now && !A_prev){
-      UI.click();
-    }
-
-    // X -> Favorite toggle (nearby heart)
-    const X_now=b(BTN.X), X_prev=prev[BTN.X]||false;
-    if(X_now && !X_prev){ try{ UI.fav?.(); }catch{} }
-
-    // B -> back/close/deselect
-    const B_now=b(BTN.B), B_prev=prev[BTN.B]||false;
-    if(B_now && !B_prev){
-      if(donutsOpen){ UI.clearFocus(); UI._clickDonutsClose(); }
-      else if(confirmOpen){ UI.clearFocus(); UI._clickConfirmClose() || tapKey(CONFIG.ESC_KEY); }
-      else if(journalOpen){
-        const back=UI._findJournalBackBtn();
-        if(back && getComputedStyle(back).display!=='none'){ back.click(); } // detail → main
-        else { tapKey(CONFIG.ESC_KEY); } // main → close journal
-      }
-      else if(profileOpen){ UI.clearFocus(); UI._clickProfileClose() || tapKey(CONFIG.ESC_KEY); }
-      else if(shopOpen){ UI.clearFocus(); UI.clickShopClose(); UI._resetShopActivated(); }
-      else if(pauseOpen){ UI.clearFocus(); UI.clickPauseClose(); }
-      else if(inBox && !inventoryOpen){ boxModeManual=false; UI.clearFocus(); }
-      else if(inventoryOpen){ UI.clearFocus(); tapEscape(); }
-      else if(hotbarSlot!=null){ deselectViaRepeat(); }
-      else { tapEscape(); }
-    }
-
-    // Y -> Inventory toggle (blocked by shop/pause/confirm/donuts/journal/profile/purchase)
-    const Y_now=b(BTN.Y), Y_prev=prev[BTN.Y]||false;
-    if(Y_now && !Y_prev){ if(!shopOpen && !pauseOpen && !confirmOpen && !donutsOpen && !journalOpen && !profileOpen) tapInventoryToggle(); }
-
-    // LB/RB (Inventory: jump between favorites ONLY; Journal: toggle tabs)
-    const RB_now=b(BTN.RB), RB_prev=prev[BTN.RB]||false;
-    const LB_now=b(BTN.LB), LB_prev=prev[BTN.LB]||false;
-    if(RB_now && !RB_prev && (now-lastRB)>CONFIG.RB_LB_COOLDOWN_MS){
-      lastRB=now;
-      if(inBox){
-        if(donutsOpen){ /* ignore */ }
-        else if(confirmOpen){ UI.moveBy(+1,0); }
-        else if(journalOpen){ UI._journalToggle(); }
-        else if(inventoryOpen){ UI.jumpInventoryFavorite(+1); }
-        else if(profileOpen){ UI.moveBy(+1,0); }
-        else { (shopOpen?UI.moveShop(+1,0):UI.moveBy(+1,0)); }
-      } else {
-        stepHotbar(+1);
-      }
-    }
-    if(LB_now && !LB_prev && (now-lastLB)>CONFIG.RB_LB_COOLDOWN_MS){
-      lastLB=now;
-      if(inBox){
-        if(donutsOpen){ /* ignore */ }
-        else if(confirmOpen){ UI.moveBy(-1,0); }
-        else if(journalOpen){ UI._journalToggle(); }
-        else if(inventoryOpen){ UI.jumpInventoryFavorite(-1); }
-        else if(profileOpen){ UI.moveBy(-1,0); }
-        else { (shopOpen?UI.moveShop(-1,0):UI.moveBy(-1,0)); }
-      } else {
-        stepHotbar(-1);
-      }
-    }
-
-    // START -> Pause (blocked if donuts/confirm/journal/profile/purchase)
-    const START_now=b(BTN.START), START_prev=prev[BTN.START]||false;
-    if(START_now && !START_prev){
-      if(shopOpen){
-        // ignore
-      } else if(pauseOpen){
-        UI.clearFocus(); if(!UI.clickPauseClose()) tapKey(CONFIG.ESC_KEY);
-      } else if(confirmOpen || donutsOpen || journalOpen || profileOpen){
-        // ignore START while gated dialogs are up
-      } else {
-        if(!UI.clickPartyMenu()) {/* no-op */}
-        setTimeout(()=>{ if(document.querySelector('button[data-testid="system-drawer-close-button"], button.chakra-modal__close-btn[aria-label="close"], [role="dialog"] button[aria-label="close"]')){ UI.scan(true); UI.focusPausePartyTabFirst() || UI.focusTopLeft(); } },50);
-      }
-    }
-
-    // Left stick & dpad
-    const dz=CONFIG.DEADZONE;
-    const axXraw=gp.axes[0]||0, axYraw=gp.axes[1]||0;
-
-    if(!inBox){
-      const wantUp   = (axYraw<-dz)||b(BTN.DPAD_UP);
-      const wantDown = (axYraw> dz)||b(BTN.DPAD_DOWN);
-      const wantLeft = (axXraw<-dz)||b(BTN.DPAD_LEFT);
-      const wantRight= (axXraw> dz)||b(BTN.DPAD_RIGHT);
-      setHeld(CONFIG.MOVE_KEYS.up,   wantUp);
-      setHeld(CONFIG.MOVE_KEYS.down, wantDown);
-      setHeld(CONFIG.MOVE_KEYS.left, wantLeft);
-      setHeld(CONFIG.MOVE_KEYS.right,wantRight);
-      lastButtons=gp.buttons.map((_,i)=>b(i));
-      requestAnimationFrame(loop);
-      return;
-    }
-
-    // In Box Mode: disable WASD/Space entirely
-    setHeld(CONFIG.MOVE_KEYS.up,false); setHeld(CONFIG.MOVE_KEYS.down,false);
-    setHeld(CONFIG.MOVE_KEYS.left,false); setHeld(CONFIG.MOVE_KEYS.right,false);
-    setHeld(CONFIG.A_KEY,false);
-
-    // Donuts overlay swallows navigation; only A/B close
-    if(donutsOpen){
-      requestAnimationFrame(loop);
-      return;
-    }
-
-    const prevQX=qStickX, prevQY=qStickY;
-    qStickX = quantizeStick(axXraw, prevQX);
-    qStickY = quantizeStick(axYraw, prevQY);
-
-    const dX = (b(BTN.DPAD_LEFT)?-1:(b(BTN.DPAD_RIGHT)?+1:0));
-    const dY = (b(BTN.DPAD_UP)?-1:(b(BTN.DPAD_DOWN)?+1:0));
-
-    const anyD = (dX!==0 || dY!==0);
-    const anyS = (qStickX!==0 || qStickY!==0);
-
-    if(navLock==null){
-      if(anyD){ navLock='dpad'; navLockLastActive=now; }
-      else if(anyS){ navLock='stick'; navLockLastActive=now; }
-    } else if(navLock==='dpad'){
-      if(anyD) navLockLastActive=now;
-      if(!anyD && (now - navLockLastActive) > CONFIG.UI_LOCK_RELEASE_MS) navLock=null;
-    } else if(navLock==='stick'){
-      if(anyS) navLockLastActive=now;
-      if(!anyS && (now - navLockLastActive) > CONFIG.UI_LOCK_RELEASE_MS) navLock=null;
-    }
-
-    const fireRepeat = (rep, dir, axis, nowT)=>{
-      const init=CONFIG.UI_INITIAL_DELAY_MS, rpt=CONFIG.UI_REPEAT_MS;
-      const t = axis==='x'? 'tX':'tY', last = rep[axis];
-      if(dir!==last){ rep[axis]=dir; rep[t] = dir===0 ? 0 : (nowT + init); return dir!==0; }
-      if(dir!==0 && nowT>=rep[t]){ rep[t]=nowT+rpt; return true; }
-      return false;
+    let anyGamepadActive = false;
+    const now = performance.now();
+    
+    // Aggregated inputs for world mode
+    let aggregatedWants = {
+      up: false,
+      down: false,
+      left: false,
+      right: false,
+      a_key: false
     };
 
-    if(navLock==='dpad'){
-      if(fireRepeat(repD, dY, 'y', now)) {
-        if(confirmOpen){ /* vertical ignored on confirm */ }
-        else (shopOpen?UI.moveShop(0,dY):inventoryOpen?UI.moveInventory(0,dY):UI.moveBy(0,dY));
+    for (const gp of pads) {
+      if (!gp || !gp.connected) continue;
+      
+      anyGamepadActive = true;
+      const state = getControllerState(gp.index);
+      const dt = (now - state.lastFrame) / 1000;
+      state.lastFrame = now;
+
+      // --- Start of per-controller logic ---
+      const b=(i)=>btnPressed(gp,i);
+      const prev = state.lastButtons; // Get *this* controller's previous state
+      state.lastButtons = gp.buttons.map((_,i)=>b(i)); // Store *this* controller's new state
+
+      const isNewButtonPress = state.lastButtons.some((p, i) => p && !prev[i]);
+      const isAxisMoved = gp.axes.some(a => Math.abs(a) > 0.2);
+      if (isNewButtonPress || isAxisMoved) {
+        switchToGamepad();
       }
-      if(fireRepeat(repD, dX, 'x', now)) {
-        if(confirmOpen){ UI.moveBy(dX,0); }
-        else (shopOpen?UI.moveShop(dX,0):inventoryOpen?UI.moveInventory(dX,0):UI.moveBy(dX,0));
+
+      const inBox=boxMode();
+
+      // SELECT -> toggle Box Mode (global toggle, fine to be called by multiple)
+      const SELECT_now=b(BTN.SELECT), SELECT_prev=prev[BTN.SELECT]||false;
+      if(SELECT_now && !SELECT_prev){
+        if(!inventoryOpen && !pauseOpen && !shopOpen && !confirmOpen && !donutsOpen && !journalOpen && !profileOpen){
+          boxModeManual=!boxModeManual;
+          if(boxMode()){
+            releaseAllHeldKeys(); // This will be undone by aggregation, but is needed to stop box mode from getting stuck
+            UI.scan(true);
+            UI.focusTopMostPet?.() || UI.focusRandomCandidate?.() || UI.focusTopLeft();
+          } else {
+            UI.clearFocus();
+          }
+        }
       }
-    } else if(navLock==='stick'){
-      if(fireRepeat(repS, qStickY, 'y', now)) {
-        if(confirmOpen){ /* vertical ignored on confirm */ }
-        else (shopOpen?UI.moveShop(0,qStickY):inventoryOpen?UI.moveInventory(0,qStickY):UI.moveBy(0,qStickY));
+
+      // Minor popups & header token (tap events, fine to be called by multiple)
+      const L3_now=b(BTN.LSTICK), R3_now=b(BTN.RSTICK);
+      const L3_prev=prev[BTN.LSTICK]||false, R3_prev=prev[BTN.RSTICK]||false;
+
+      if(L3_now && R3_now && !(L3_prev && R3_prev)){
+        UI._clickHeaderTokenButton();
+      } else if (L3_now && !L3_prev && !R3_now) {
+        const closes = UI._findMinorPopupCloseBtns();
+        if(closes.length){ closes[0].click(); }
+      } else if (R3_now && !R3_prev && !L3_now && inventoryOpen) {
+        const el = UI.scan()[UI._getCurrentIndex()];
+        if(el) {
+          const rect = el.getBoundingClientRect();
+          const clickX = rect.left + rect.width / 2;
+          const clickY = rect.top + rect.height / 2;
+          const mouseEvent = new MouseEvent('click', {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            clientX: clickX,
+            clientY: clickY,
+            button: 0
+          });
+          el.dispatchEvent(mouseEvent);
+        }
       }
-      if(fireRepeat(repS, qStickX, 'x', now)) {
-        if(confirmOpen){ UI.moveBy(qStickX,0); }
-        else (shopOpen?UI.moveShop(qStickX,0):inventoryOpen?UI.moveInventory(qStickX,0):UI.moveBy(qStickX,0));
+
+      // A: combos and clicks (donuts hijacks A)
+      const A_now=b(BTN.A), A_prev=prev[BTN.A]||false;
+      const LT_now=btnPressed(gp,BTN.LT,0.2), RT_now=btnPressed(gp,BTN.RT,0.2); // Keep these checks for the logic below
+      if(A_now && !A_prev && donutsOpen){
+        UI._clickDonutsClose();
+      } else if(!inBox){
+        // A press will be caught by the hold check
+        if (A_now) aggregatedWants.a_key = true; // Vote to hold A
+      } else if(A_now && !A_prev){
+        UI.click(); // Box mode click (tap event, fine)
+      }
+
+      // X -> Favorite toggle (tap event, fine)
+      const X_now=b(BTN.X), X_prev=prev[BTN.X]||false;
+      if(X_now && !X_prev){ try{ UI.fav?.(); }catch{} }
+
+      // B -> back/close/deselect (tap event, fine)
+      const B_now=b(BTN.B), B_prev=prev[BTN.B]||false;
+      if(B_now && !B_prev){
+        if(donutsOpen){ UI.clearFocus(); UI._clickDonutsClose(); }
+        else if(confirmOpen){ UI.clearFocus(); UI._clickConfirmClose() || tapKey(CONFIG.ESC_KEY); }
+        else if(journalOpen){
+          const back=UI._findJournalBackBtn();
+          if(back && getComputedStyle(back).display!=='none'){ back.click(); }
+          else { tapKey(CONFIG.ESC_KEY); }
+        }
+        else if(profileOpen){ UI.clearFocus(); UI._clickProfileClose() || tapKey(CONFIG.ESC_KEY); }
+        else if(shopOpen){ UI.clearFocus(); UI.clickShopClose(); UI._resetShopActivated(); }
+        else if(pauseOpen){ UI.clearFocus(); UI.clickPauseClose(); }
+        else if(inBox && !inventoryOpen){ boxModeManual=false; UI.clearFocus(); }
+        else if(inventoryOpen){ UI.clearFocus(); tapEscape(); }
+        else if(hotbarSlot!=null){ deselectViaRepeat(); }
+        else { tapEscape(); }
+      }
+
+      // Y -> Inventory toggle (tap event, fine)
+      const Y_now=b(BTN.Y), Y_prev=prev[BTN.Y]||false;
+      if(Y_now && !Y_prev){ if(!shopOpen && !pauseOpen && !confirmOpen && !donutsOpen && !journalOpen && !profileOpen) tapInventoryToggle(); }
+
+      // L2/R2 -> Teleport (tap event, fine)
+      const RT_now_edge = RT_now && !state.lastRT;
+      const LT_now_edge = LT_now && !state.lastLT;
+      const LSTICK_now = b(BTN.LSTICK), LSTICK_prev = prev[BTN.LSTICK] || false;
+
+      if(!A_now && !locked() && !isTyping() && !inBox){
+          if (RT_now_edge) { // Only RT pressed
+             teleport('shop');
+          } else if (LT_now_edge) { // Only LT pressed
+             teleport('sell');
+          } else if (LSTICK_now && !LSTICK_prev) { // Only LSTICK pressed
+             teleport('garden');
+          }
+      }
+
+      // LB/RB (tap events, fine)
+      const RB_now=b(BTN.RB), RB_prev=prev[BTN.RB]||false;
+      const LB_now=b(BTN.LB), LB_prev=prev[BTN.LB]||false;
+      if(RB_now && !RB_prev && (now - state.lastRB) > CONFIG.RB_LB_COOLDOWN_MS){
+        state.lastRB=now;
+        if(inBox){
+          if(donutsOpen){ /* ignore */ }
+          else if(confirmOpen){ UI.moveBy(+1,0); }
+          else if(journalOpen){ UI._journalToggle(); }
+          else if(inventoryOpen){ UI.jumpInventoryFavorite(+1); }
+          else if(profileOpen){ UI.moveBy(+1,0); }
+          else { (shopOpen?UI.moveShop(+1,0):UI.moveBy(+1,0)); }
+        } else {
+          stepHotbar(+1);
+        }
+      }
+      if(LB_now && !LB_prev && (now - state.lastLB) > CONFIG.RB_LB_COOLDOWN_MS){
+        state.lastLB=now;
+        if(inBox){
+          if(donutsOpen){ /* ignore */ }
+          else if(confirmOpen){ UI.moveBy(-1,0); }
+          else if(journalOpen){ UI._journalToggle(); }
+          else if(inventoryOpen){ UI.jumpInventoryFavorite(-1); }
+          else if(profileOpen){ UI.moveBy(-1,0); }
+          else { (shopOpen?UI.moveShop(-1,0):UI.moveBy(-1,0)); }
+        } else {
+          stepHotbar(-1);
+        }
+      }
+
+      // START -> Pause (tap event, fine)
+      const START_now=b(BTN.START), START_prev=prev[BTN.START]||false;
+      if(START_now && !START_prev){
+        try {
+          console.log('Start button pressed! Opening dev console.');
+          ipcRenderer.invoke('dev-console:execute-command', 'open-dev-console');
+        } catch(e) {
+          console.error('[MagicGardenController] ipcRenderer not available. Dev console command failed.', e);
+        }
+
+        if(shopOpen){ /* ignore */ }
+        else if(pauseOpen){
+          UI.clearFocus(); if(!UI.clickPauseClose()) tapKey(CONFIG.ESC_KEY);
+        } else if(confirmOpen || donutsOpen || journalOpen || profileOpen){ /* ignore */ }
+        else {
+          if(!UI.clickPartyMenu()) {/* no-op */}
+          setTimeout(()=>{ if(document.querySelector('button[data-testid="system-drawer-close-button"], button.chakra-modal__close-btn[aria-label="close"], [role="dialog"] button[aria-label="close"]')){ UI.scan(true); UI.focusPausePartyTabFirst() || UI.focusTopLeft(); } },50);
+        }
+      }
+
+      // Left stick & dpad
+      const dz=CONFIG.DEADZONE;
+      const axXraw=gp.axes[0]||0, axYraw=gp.axes[1]||0;
+      
+      // Right Stick X -> crops (tap event, fine)
+      const rsx = (gp.axes && typeof gp.axes[CONFIG.RS_X_AXIS]==='number') ? gp.axes[CONFIG.RS_X_AXIS] : 0;
+      const inDead = Math.abs(rsx) < CONFIG.RS_DZ;
+      let sign = 0;
+      if(!inDead) sign = (rsx > 0) ? 1 : -1;
+      if(!A_now && !locked() && !isTyping() && !inBox){
+          if(sign === 1 && (state.lastRSsign<=0)) { tapC(); if(CONFIG.RS_REQUIRE_CENTER) state.lastRSsign = 1; else state.lastRSsign = 0; }
+          if(sign === -1 && (state.lastRSsign>=0)) { tapX(); if(CONFIG.RS_REQUIRE_CENTER) state.lastRSsign = -1; else state.lastRSsign = 0; }
+      }
+      if(inDead) state.lastRSsign = 0;
+      
+      // Update per-controller trigger state
+      state.lastLT = LT_now;
+      state.lastRT = RT_now;
+
+      if(!inBox){
+        // --- World Mode: Vote for movement ---
+        const wantUp   = (axYraw<-dz)||b(BTN.DPAD_UP);
+        const wantDown = (axYraw> dz)||b(BTN.DPAD_DOWN);
+        const wantLeft = (axXraw<-dz)||b(BTN.DPAD_LEFT);
+        const wantRight= (axXraw> dz)||b(BTN.DPAD_RIGHT);
+        if (wantUp) aggregatedWants.up = true;
+        if (wantDown) aggregatedWants.down = true;
+        if (wantLeft) aggregatedWants.left = true;
+        if (wantRight) aggregatedWants.right = true;
+      } else {
+        // --- Box Mode: Per-controller UI nav ---
+        if(donutsOpen){
+          // Donuts overlay swallows navigation
+        } else {
+          const prevQX=state.qStickX, prevQY=state.qStickY;
+          state.qStickX = quantizeStick(axXraw, prevQX);
+          state.qStickY = quantizeStick(axYraw, prevQY);
+
+          const dX = (b(BTN.DPAD_LEFT)?-1:(b(BTN.DPAD_RIGHT)?+1:0));
+          const dY = (b(BTN.DPAD_UP)?-1:(b(BTN.DPAD_DOWN)?+1:0));
+
+          const anyD = (dX!==0 || dY!==0);
+          const anyS = (state.qStickX!==0 || state.qStickY!==0);
+
+          if(state.navLock==null){
+            if(anyD){ state.navLock='dpad'; state.navLockLastActive=now; }
+            else if(anyS){ state.navLock='stick'; state.navLockLastActive=now; }
+          } else if(state.navLock==='dpad'){
+            if(anyD) state.navLockLastActive=now;
+            if(!anyD && (now - state.navLockLastActive) > CONFIG.UI_LOCK_RELEASE_MS) state.navLock=null;
+          } else if(state.navLock==='stick'){
+            if(anyS) state.navLockLastActive=now;
+            if(!anyS && (now - state.navLockLastActive) > CONFIG.UI_LOCK_RELEASE_MS) state.navLock=null;
+          }
+
+          const fireRepeat = (rep, dir, axis, nowT)=>{
+            const init=CONFIG.UI_INITIAL_DELAY_MS, rpt=CONFIG.UI_REPEAT_MS;
+            const t = axis==='x'? 'tX':'tY', last = rep[axis];
+            if(dir!==last){ rep[axis]=dir; rep[t] = dir===0 ? 0 : (nowT + init); return dir!==0; }
+            if(dir!==0 && nowT>=rep[t]){ rep[t]=nowT+rpt; return true; }
+            return false;
+          };
+
+          if(state.navLock==='dpad'){
+            if(fireRepeat(state.repD, dY, 'y', now)) {
+              if(confirmOpen){ /* vertical ignored on confirm */ }
+              else (shopOpen?UI.moveShop(0,dY):inventoryOpen?UI.moveInventory(0,dY):UI.moveBy(0,dY));
+            }
+            if(fireRepeat(state.repD, dX, 'x', now)) {
+              if(confirmOpen){ UI.moveBy(dX,0); }
+              else (shopOpen?UI.moveShop(dX,0):inventoryOpen?UI.moveInventory(dX,0):UI.moveBy(dX,0));
+            }
+          } else if(state.navLock==='stick'){
+            if(fireRepeat(state.repS, state.qStickY, 'y', now)) {
+              if(confirmOpen){ /* vertical ignored on confirm */ }
+              else (shopOpen?UI.moveShop(0,state.qStickY):inventoryOpen?UI.moveInventory(0,state.qStickY):UI.moveBy(0,state.qStickY));
+            }
+            if(fireRepeat(state.repS, state.qStickX, 'x', now)) {
+              if(confirmOpen){ UI.moveBy(state.qStickX,0); }
+              else (shopOpen?UI.moveShop(state.qStickX,0):inventoryOpen?UI.moveInventory(state.qStickX,0):UI.moveBy(state.qStickX,0));
+            }
+          }
+
+          // Right Stick Y Scroll (per-controller, fine)
+          const rightStickScroll = (gp, dt)=>{
+            if(!shopOpen) return;
+            if(UI.isCropsShop()) return; // disabled in crops
+            const ry = gp.axes[3]||0;
+            if(Math.abs(ry) > CONFIG.SHOP_SCROLL_STICK_DZ){
+              const px = Math.max(-CONFIG.SHOP_SCROLL_MAXSTEP_PX, Math.min(CONFIG.SHOP_SCROLL_MAXSTEP_PX, ry * CONFIG.SHOP_SCROLL_SPEED_PX_PER_SEC * dt));
+              if(Math.abs(px) > 0.5) UI.scrollShopBy(px);
+            }
+          };
+          rightStickScroll(gp, dt);
+        }
+      }
+      // --- End of per-controller logic ---
+    }
+    
+    // --- After loop: Apply aggregated actions ---
+    if (!anyGamepadActive) {
+      // No controllers connected, release all keys and clear states
+      releaseAllHeldKeys();
+      controllerStates.clear();
+    } else {
+      const inBox = boxMode(); 
+      if (inBox) {
+        // If in box mode, release all world keys
+        setHeld(CONFIG.MOVE_KEYS.up,false);
+        setHeld(CONFIG.MOVE_KEYS.down,false);
+        setHeld(CONFIG.MOVE_KEYS.left,false);
+        setHeld(CONFIG.MOVE_KEYS.right,false);
+        setHeld(CONFIG.A_KEY,false);
+      } else {
+        // If in world mode, apply aggregated keys
+        setHeld(CONFIG.MOVE_KEYS.up,   aggregatedWants.up);
+        setHeld(CONFIG.MOVE_KEYS.down, aggregatedWants.down);
+        setHeld(CONFIG.MOVE_KEYS.left, aggregatedWants.left);
+        setHeld(CONFIG.MOVE_KEYS.right, aggregatedWants.right);
+        setHeld(CONFIG.A_KEY, aggregatedWants.a_key);
       }
     }
-
-    rightStickScroll(gp, dt);
 
     requestAnimationFrame(loop);
   };
 
-  const start=()=>{ if(document.activeElement?.blur) document.activeElement.blur(); window.focus(); requestAnimationFrame(loop); console.log('[MagicGardenController] Started (v40).'); };
-  const stop =()=>{ for(const {spec,mods} of activeKeys.values()) keyUp(spec,mods); activeKeys.clear(); console.log('[MagicGardenController] Stopped.'); };
+  const start=()=>{
+    if(document.activeElement?.blur) document.activeElement.blur();
+    window.focus();
+    
+    // --- ADDED ---
+    try {
+      console.log('[MagicGardenController] Installing shim...');
+      ipcRenderer.invoke('gamepad:install-shim');
+    } catch(e) {
+      console.error('[MagicGardenController] ipcRenderer not available. Shim install failed.', e);
+    }
+    // --- END ADDED ---
+    
+    requestAnimationFrame(loop);
+    console.log('[MagicGardenController] Started (v40-Multiplayer).');
+  };
+  const stop =()=>{ 
+    releaseAllHeldKeys();
+    controllerStates.clear();
+    console.log('[MagicGardenController] Stopped.');
+  };
 
   window.MagicGardenController = {
     start, stop, pick,
@@ -1584,9 +1661,11 @@
     get journalOpen(){ return journalOpen; },
     get profileOpen(){ return profileOpen; },
     get boxMode(){ return boxMode(); },
+    get locked(){ return locked(); }, // Expose lock state
     config: CONFIG,
     debug: debugShop,
     debugMovement: debugMovement,
+    teleport: teleport, // Expose teleport
   };
 
   // Debug function to check what's in shop scan results
@@ -1617,4 +1696,4 @@
 
   window.addEventListener('gamepadconnected', start, { once:true });
   start();
-})();
+

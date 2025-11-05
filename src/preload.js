@@ -23,9 +23,14 @@ contextBridge.exposeInMainWorld('devConsoleApi', {
 
 const desktopApi = {
   readFile: (relativePath) => ipcRenderer.invoke('read-file-content', relativePath),
+  getAudioBase64: (filename) => ipcRenderer.invoke('get-audio-base64', filename),
+  app: {
+    relaunch: () => ipcRenderer.send('app:relaunch')
+  },
   settings: {
     getCurrentDomain: () => ipcRenderer.invoke('settings:get-current-domain'),
-    setDomain: (domain, isBeta) => ipcRenderer.invoke('settings:set-domain', domain, isBeta)
+    setDomain: (domain, isBeta) => ipcRenderer.invoke('settings:set-domain', domain, isBeta),
+    setSfxVolume: (volume) => ipcRenderer.invoke('settings:set-sfx-volume', volume)
   }
 };
 contextBridge.exposeInMainWorld('desktopApi', desktopApi);
