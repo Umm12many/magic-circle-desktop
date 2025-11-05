@@ -1,0 +1,8 @@
+{
+  "name": "Optional CSS Enhancements Mod",
+  "description": "A collection of optional CSS enhancements for the desktop application.",
+  "author": "Umm12many",
+  "file": "main.js",
+  "icon": "palette",
+  "tab": "tab.html"
+}

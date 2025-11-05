@@ -23,15 +23,21 @@ function getSettings() {
         if (settings.disableController === undefined) {
             settings.disableController = false;
         }
+        if (settings.mods === undefined) {
+            settings.mods = {};
+        }
         return settings;
     } catch (error) {
-        return {
+        const defaultSettings = {
             domain: 'magiccircle.gg',
             isBeta: false,
             sfxVolume: 1.0, // Default SFX volume
             disableMods: false, // Default disable mods
-            disableController: false // Default disable controller
+            disableController: false, // Default disable controller
+            mods: {}
         };
+        saveSettings(defaultSettings);
+        return defaultSettings;
     }
 }
 
@@ -722,6 +728,21 @@ const createWindow = () => {
       return true; // Indicate success
   });
 
+  ipcMain.handle('settings:set-mod-enabled', (event, modName, isEnabled) => {
+    const settings = getSettings();
+    if (!settings.mods) {
+      settings.mods = {};
+    }
+    settings.mods[modName] = isEnabled;
+    saveSettings(settings);
+    return true;
+  });
+
+  ipcMain.handle('settings:get-mod-enabled', (event, modName) => {
+    const settings = getSettings();
+    return settings.mods && settings.mods[modName];
+  });
+
   ipcMain.on('app:relaunch', () => {
       app.relaunch();
       app.quit();
@@ -757,6 +778,72 @@ const createWindow = () => {
           console.error('Failed to read controller-handler.js:', error);
           return null;
       }
+  });
+
+  ipcMain.handle('get-mods', () => {
+    const modsDir = path.join(__dirname, 'mods');
+    try {
+        const modFolders = fs.readdirSync(modsDir, { withFileTypes: true })
+            .filter(dirent => dirent.isDirectory())
+            .map(dirent => dirent.name);
+
+        const mods = modFolders.map(folder => {
+            const modPath = path.join(modsDir, folder);
+            const metadataPath = path.join(modPath, 'mod.json');
+
+            try {
+                const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+                const mainFilePath = path.join(modPath, metadata.file);
+                const content = fs.readFileSync(mainFilePath, 'utf8');
+                let tabContent = null;
+                if (metadata.tab) {
+                    const tabPath = path.join(modPath, metadata.tab);
+                    tabContent = fs.readFileSync(tabPath, 'utf8');
+                }
+                return { ...metadata, content, tabContent, id: folder };
+            } catch (error) {
+                console.error(`Failed to read mod: ${folder}`, error);
+                return null;
+            }
+        }).filter(mod => mod !== null);
+
+        return mods;
+    } catch (error) {
+        console.error('Failed to read mods directory:', error);
+        return [];
+    }
+  });
+
+  ipcMain.handle('get-mod-files', (event, modId, directory) => {
+    const modPath = path.join(__dirname, 'mods', modId, directory);
+    try {
+      return fs.readdirSync(modPath);
+    } catch (error) {
+      console.error(`Failed to read directory: ${modPath}`, error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('get-mod-file-content', (event, modId, filePath) => {
+    const fullPath = path.join(__dirname, 'mods', modId, filePath);
+    try {
+      return fs.readFileSync(fullPath, 'utf8');
+    } catch (error) {
+      console.error(`Failed to read file: ${fullPath}`, error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('mod:inject-css', (event, cssContent) => {
+    if (mainWindow) {
+      mainWindow.webContents.insertCSS(cssContent).then(() => {
+        console.log('Mod CSS injected via main process.');
+      }).catch(error => {
+        console.error('Error injecting mod CSS via main process:', error);
+      });
+      return true;
+    }
+    return false;
   });
 
   // --- Global Shortcuts (UNCHANGED) ---

@@ -1,0 +1,8 @@
+{
+  "name": "Example Mod",
+  "description": "A simple example mod that logs a message to the console.",
+  "author": "Gemini",
+  "file": "main.js",
+  "icon": "extension",
+  "tab": "tab.html"
+}

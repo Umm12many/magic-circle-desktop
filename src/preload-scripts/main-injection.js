@@ -38,7 +38,7 @@
             // It's a Material Icon class
             const iconSpan = document.createElement('span');
             iconSpan.className = 'material-icons';
-            iconSpan.textContent = iconHtml.replace('material-icons ', ''); // Extract icon name
+            iconSpan.textContent = iconHtml.split(' ').pop();
             newTabButton.appendChild(iconSpan);
         } else if (iconHtml.includes('material-symbols')) {
             // It's a Material Symbols class
@@ -85,6 +85,13 @@
         }
     }
   }
+
+  function addModTab(title, htmlContent, iconHtml, setupFunction, existingPanelId = null) {
+    const creditsTab = document.getElementById('custom-tab-credits');
+    addCustomTab(title, htmlContent, "material-symbols " + iconHtml, setupFunction, existingPanelId, creditsTab);
+  }
+
+  desktopApi.addModTab = addModTab;
 
   let currentSfxVolume = 1.0; // Global variable to store SFX volume
 
@@ -373,10 +380,74 @@ function convertMp3ToBase64(mp3File, callback) {
         await setupControllerDebugTab();
         await setupGamepadSettingsTab();
 
-        // Add Mods Tab
-        const modsHTML = await desktopApi.readFile('tabs/mods.html');
-        const modsSVG = `material-symbols build`;
-        addCustomTab('Mods', modsHTML, modsSVG, null);
+        async function setupModsTab() {
+          const modsHTML = await desktopApi.readFile('tabs/mods.html');
+          const modsSVG = `material-symbols build`;
+
+        const updateSwitchVisuals = (checkbox) => {
+            const track = checkbox.nextElementSibling;
+            if (track && track.classList.contains('chakra-switch__track')) {
+                const thumb = track.querySelector('.chakra-switch__thumb');
+                if (checkbox.checked) {
+                    track.setAttribute('data-checked', '');
+                    if (thumb) {
+                        thumb.setAttribute('data-checked', '');
+                    }
+                } else {
+                    track.removeAttribute('data-checked');
+                    if (thumb) {
+                        thumb.removeAttribute('data-checked');
+                    }
+                }
+            }
+        };
+
+          const setup = async (panel) => {
+            const modsContainer = panel.querySelector('#mods-container');
+            const reloadButton = panel.querySelector('#reload-mods-button');
+            if (!modsContainer || !reloadButton) return;
+
+            const mods = await ipcRenderer.invoke('get-mods');
+
+            for (const mod of mods) {
+              const isEnabled = await ipcRenderer.invoke('settings:get-mod-enabled', mod.id);
+
+              const modSwitch = document.createElement('div');
+              modSwitch.className = 'McFlex css-qd8y53';
+
+              modSwitch.innerHTML = `
+                <div class="McFlex css-2sjrf6" style="flex-direction: column; align-items: flex-start;">
+                  <p class="chakra-text css-1krxe8n">${mod.name} <span style="font-size: 0.8rem; color: #aaa;">by ${mod.author}</span></p>
+                  <p class="chakra-text css-1c6xk0d" style="font-size: 0.9rem;">${mod.description}</p>
+                </div>
+                <label class="chakra-switch css-ghot30">
+                  <input id="${mod.id}-checkbox" class="chakra-switch__input" type="checkbox" ${isEnabled ? 'checked' : ''} style="border: 0px; clip: rect(0px, 0px, 0px, 0px); height: 1px; width: 1px; margin: -1px; padding: 0px; overflow: hidden; white-space: nowrap; position: absolute;">
+                  <span aria-hidden="true" class="chakra-switch__track css-1jo4xnw"><span class="chakra-switch__thumb css-1lxj90k"></span></span>
+                </label>
+              `;
+
+              modsContainer.appendChild(modSwitch);
+
+              const checkbox = modSwitch.querySelector(`#${mod.id}-checkbox`);
+              checkbox.checked = isEnabled;
+              updateSwitchVisuals(checkbox);
+
+              checkbox.addEventListener('change', (event) => {
+                ipcRenderer.invoke('settings:set-mod-enabled', mod.id, event.target.checked);
+                updateSwitchVisuals(checkbox);
+                reloadButton.style.visibility = 'visible';
+              });
+            }
+
+            reloadButton.addEventListener('click', () => {
+              window.location.reload();
+            });
+          };
+
+          addCustomTab('Mods', modsHTML, modsSVG, setup);
+        }
+
+        await setupModsTab();
 
         // Add Credits Tab
         const creditsHTML = await desktopApi.readFile('tabs/credits.html');
@@ -432,6 +503,27 @@ function convertMp3ToBase64(mp3File, callback) {
             aboutTabRepositioned = true; // Set flag to true after successful repositioning
         }
         await repositionAboutTab();
+
+        ipcRenderer.invoke('settings:get-mod-settings').then(({ disableMods }) => {
+          if (!disableMods) {
+            ipcRenderer.invoke('get-mods').then(mods => {
+              mods.forEach(async mod => {
+                const isEnabled = await ipcRenderer.invoke('settings:get-mod-enabled', mod.id);
+                if (isEnabled) {
+                  if (mod.tabContent) {
+                    // Nothing needed here since we now link to existing panels   
+                  }
+                  try {
+                    new Function('require', 'ipcRenderer', 'process', 'desktopApi', 'mod', mod.content)(require, ipcRenderer, process, desktopApi, mod);
+                    //console.log(`Successfully loaded mod: ${mod.name}`); Removed for less console spam
+                  } catch (error) {
+                    console.error(`Failed to execute mod: ${mod.name}` , error);
+                  }
+                }
+              });
+            }).catch(err => console.error('Failed to get mods via IPC:', err));
+          }
+        });
 
         if (!tabListenerAdded) {
             const tabList = document.querySelector('.chakra-tabs__tablist');
