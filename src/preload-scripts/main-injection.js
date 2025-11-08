@@ -1,9 +1,6 @@
-// Your injection logic goes here.
-  // This code will run every time a new page loads in the BrowserWindow.
-
-  magicCircleDesktopVersion = "Canary0.0.1";
-  let tabListenerAdded = false;
-  let aboutTabRepositioned = false;
+        magicCircleDesktopVersion = "Canary0.1.1";
+        let tabListenerAdded = false;
+        let aboutTabRepositioned = false;
 
   // title: string, htmlContent: string, iconHtml: string, setupFunction: (panel: HTMLElement) => void, existingPanelId: string (optional)
   function addCustomTab(title, htmlContent, iconHtml, setupFunction, existingPanelId = null, referenceNode = null) {
@@ -124,6 +121,36 @@
 
         if (!domainSelect || !betaCheckbox || !disableModsCheckbox || !sfxVolumeSlider || !saveButton || !saveChangesButton) return; // Updated
 
+        const customSelectValue = domainSelect.querySelector('.custom-select-value');
+        const customSelectOptions = domainSelect.querySelector('.custom-select-options');
+
+        // Function to close the dropdown
+        const closeDropdown = () => {
+            customSelectOptions.style.display = 'none';
+        };
+
+        // Toggle dropdown visibility
+        customSelectValue.addEventListener('click', (event) => {
+            event.stopPropagation();
+            customSelectOptions.style.display = customSelectOptions.style.display === 'none' ? 'block' : 'none';
+        });
+
+        // Handle option selection
+        customSelectOptions.addEventListener('click', (event) => {
+            if (event.target.classList.contains('custom-select-option')) {
+                const value = event.target.getAttribute('data-value');
+                customSelectValue.textContent = value;
+                domainSelect.value = value;
+                closeDropdown();
+            }
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (event) => {
+            if (!domainSelect.contains(event.target)) {
+                closeDropdown();
+            }
+        });
 
         function updateSwitchVisuals(checkbox){
             const track = checkbox.nextElementSibling; // The track span
@@ -147,6 +174,7 @@
         try {
             const currentSettings = await desktopApi.settings.getCurrentDomain(); // This also returns sfxVolume now
             if (currentSettings) {
+                customSelectValue.textContent = currentSettings.domain;
                 domainSelect.value = currentSettings.domain;
                 betaCheckbox.checked = currentSettings.isBeta;
                 disableModsCheckbox.checked = currentSettings.disableMods;
@@ -262,11 +290,10 @@
               //chakra-text css-18wqe6v
               //chakra-text.css-ac3ke8
     //Code for room is fuull, adding a text box to join a new room:
-    const rfTargetElements = document.querySelectorAll('p.chakra-text.css-1491zxh');
+    const rfTargetElements = document.querySelectorAll('p.css-1491zxh');
 
     for (const p of rfTargetElements) {
-        // Ensure we've found the correct element by checking its text content.
-        if (p.textContent.trim().startsWith('This room is full.')) {
+        if (p.textContent.trim().startsWith('This room')) {
             ipcRenderer.invoke('main-process-function:throwJoinPage')
         }
     }
@@ -296,7 +323,7 @@
     // Find all <p> tags with the exact classes you specified.
     const targetElements = document.querySelectorAll('p.chakra-text.css-a4hk4l');
 
-    // Function to add CSS link if not already present
+
     const addCssIfNotPresent = (id, href) => {
         if (!document.getElementById(id)) {
             const link = document.createElement('link');
@@ -307,10 +334,54 @@
         }
     };
 
+    const addCssAsStyleTag = (id, css) => {
+        if (!document.getElementById(id)) {
+            const style = document.createElement('style');
+            style.id = id;
+            style.textContent = css;
+            document.head.appendChild(style);
+        }
+    };
+
     // Add Font Awesome CSS
     addCssIfNotPresent('fontawesome-css', '../node_modules/@fortawesome/fontawesome-free/css/all.min.css');
     // Add Material Symbols CSS
     addCssIfNotPresent('material-symbols-css', 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+
+    addCssAsStyleTag('custom-dropdown-styles', `
+    .custom-select-container {
+        position: relative;
+        width: 100%;
+        border-radius: 5px;
+    }
+
+    .custom-select-value {
+        padding: 10px;
+        cursor: pointer;
+    }
+
+    .custom-select-options {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        z-index: 1;
+        background-color: #808080ee;
+    backdrop-filter: blur(10px);
+    box-shadow: rgba(0, 0, 0, 0.2) 4px 4px 4px 4px;
+    }
+
+    .custom-select-option {
+        padding: 10px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+
+    .custom-select-option:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+    `);
 
     for (const p of targetElements) {
       // Ensure we've found the correct element by checking its text content.
@@ -596,12 +667,23 @@ function convertMp3ToBase64(mp3File, callback) {
     };
 
             const observer = new MutationObserver((mutationsList, observer) => {
+                const rfTargetElements = document.querySelectorAll('p.css-1491zxh');
+
+    for (const p of rfTargetElements) {
+        if (p.textContent.trim().startsWith('This room')) {
+            ipcRenderer.invoke('main-process-function:throwJoinPage')
+        }
+    }
                 for(const mutation of mutationsList) {
                     if (mutation.type === 'childList') {
                         for (const node of mutation.addedNodes) {
                             if ((node.matches && node.matches('.chakra-tabs__tablist')) || (node.querySelector && node.querySelector('.chakra-tabs__tablist'))) {
                                 injectDiv();
                                 return;
+                            }
+                            // will change this to a mod soon, just cleaning up this area so i can easily make changes quickly 
+                            else if ((node.matches && node.matches('.css-io4kx3')) || (node.querySelector && node.querySelector('.chakra-tabs__tab-panels'))) {
+                                node.parentElement.parentElement.removeChild(node.parentElement);
                             }
                         }
                         for (const node of mutation.removedNodes) {
@@ -619,8 +701,6 @@ function convertMp3ToBase64(mp3File, callback) {
               childList: true, // Watch for direct children changes
               subtree: true    // Watch for all descendants
             });
-
-
   // Execute insertToApp in the main process via IPC, as requested
 
     const updateTitleFromUrl = () => {
@@ -663,6 +743,13 @@ function convertMp3ToBase64(mp3File, callback) {
   });
 
   console.log('DOMContentLoaded event fired! Code has been injected.');
+  const rfTargetElements = document.querySelectorAll('p.css-1491zxh');
+
+    for (const p of rfTargetElements) {
+        if (p.textContent.trim().startsWith('This room')) {
+            ipcRenderer.invoke('main-process-function:throwJoinPage')
+        }
+    }
               const tabList = document.querySelector('.chakra-tabs__tablist');
               if (!tabList) {
                 tabListenerAdded = false;

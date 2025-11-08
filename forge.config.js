@@ -1,9 +1,11 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
+require('dotenv').config();
 
 module.exports = {
   packagerConfig: {
     asar: true,
+    icon: './src/logo',
   },
   rebuildConfig: {
     onlyModules: []
@@ -11,7 +13,9 @@ module.exports = {
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        setupIcon: './src/logo.ico'
+      },
     },
     {
       name: '@electron-forge/maker-zip',
@@ -26,6 +30,19 @@ module.exports = {
       platforms: ['fedora'],
       config: {},
     },
+  ],
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'Umm12many',
+          name: 'magic-circle-desktop'
+        },
+        authToken: process.env.GITHUB_TOKEN,
+        prerelease: true
+      }
+    }
   ],
   plugins: [
     {

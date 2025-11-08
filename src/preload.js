@@ -35,6 +35,21 @@ const desktopApi = {
 };
 contextBridge.exposeInMainWorld('desktopApi', desktopApi);
 
+const fireBaseApi = {
+    signIn: (email, password) => ipcRenderer.invoke('firebase:signIn', email, password),
+    createAccount: (email, password) => ipcRenderer.invoke('firebase:createAccount', email, password),
+    signOut: () => ipcRenderer.invoke('firebase:signOut'),
+    signInWithGoogle: () => ipcRenderer.invoke('firebase:signInWithGoogle'),
+    signInWithGitHub: () => ipcRenderer.invoke('firebase:signInWithGitHub'),
+    createRoom: (roomName, tags) => ipcRenderer.invoke('firebase:createRoom', roomName, tags),
+    deleteRoom: (roomName) => ipcRenderer.invoke('firebase:deleteRoom', roomName),
+    listenToRooms: (callback) => ipcRenderer.on('firebase:rooms-updated', callback),
+    requestInitialData: () => ipcRenderer.invoke('firebase:request-initial-data'),
+    debugLogRooms: () => ipcRenderer.invoke('firebase:debug-log-rooms'),
+};
+contextBridge.exposeInMainWorld('fireBaseApi', fireBaseApi);
+
+
 window.addEventListener('DOMContentLoaded', () => {
   ipcRenderer.invoke('main-process-function:insertToApp')
     .then(() => console.log('insertToApp executed via IPC on DOMContentLoaded.'))

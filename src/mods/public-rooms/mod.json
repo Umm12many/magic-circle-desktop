@@ -1,0 +1,8 @@
+{
+  "name": "Public Rooms (Experimental) [Not a Mod]",
+  "description": "Enables access to public rooms within the desktop application. (Experimental feature, may not work as intended.)",   
+  "author": "Umm12many & Myke",
+  "file": "main.js",
+  "icon": "public",
+  "tab": "tab.html"
+}

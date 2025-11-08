@@ -1,7 +1,7 @@
 {
   "name": "magic-garden",
   "productName": "Magic Garden Desktop App",
-  "version": "0.0.1",
+  "version": "0.1.1",
   "description": "The desktop application for Magic Garden, made by Umm12many with some spice mixed in from Avi one of the actual game developers!",
   "main": "src/index.js",
   "scripts": {
@@ -18,11 +18,10 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@chakra-ui/react": "^3.27.1",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
     "discord-rpc": "^4.0.1",
+    "dotenv": "^17.2.3",
     "electron-squirrel-startup": "^1.0.1",
+    "firebase": "^12.5.0",
     "framer-motion": "^12.23.24",
     "node-addon-api": "^8.5.0",
     "node-gamepad": "^0.1.15",
@@ -39,10 +38,8 @@
     "@electron-forge/maker-zip": "^7.8.1",
     "@electron-forge/plugin-auto-unpack-natives": "^7.8.1",
     "@electron-forge/plugin-fuses": "^7.8.1",
-    "@electron-forge/plugin-vite": "^7.10.2",
+    "@electron-forge/publisher-github": "^7.10.2",
     "@electron/fuses": "^1.8.0",
-    "@vitejs/plugin-react": "^5.0.4",
-    "electron": "36.2.1",
-    "vite": "^7.1.9"
+    "electron": "36.2.1"
   }
 }

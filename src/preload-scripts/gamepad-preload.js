@@ -330,9 +330,9 @@
             z-index: 9999;
             pointer-events: none;
           }
-          #hint-garden { top: 10px; left: 10px; }
-          #hint-shop { top: 50px; left: 10px; }
-          #hint-sell { top: 90px; left: 10px; }
+          #hint-garden { top: 50px; left: 10px; }
+          #hint-shop { top: 90px; left: 10px; }
+          #hint-sell { top: 130px; left: 10px; }
         `;
         document.head.appendChild(hintsStyle);
 
@@ -354,6 +354,10 @@
         hintSell.textContent = 'Right Trigger: Sell';
         document.body.appendChild(hintSell);
         controllerHintsCreated = true;
+        document.getElementById('mgc-controller-hints-style').style.display = 'none';
+        document.getElementById('hint-garden').style.display = 'none';
+        document.getElementById('hint-shop').style.display = 'none';
+        document.getElementById('hint-sell').style.display = 'none';
       }
     } else {
       if (controllerHintsCreated) {

@@ -1,0 +1,349 @@
+<style>
+    :root {
+        --background-color: #2b3035a2;
+        --card-background: #1b1b1b1f;
+        --primary-color: #fc4eb8;
+        --text-color: #ffffff;
+        --input-background: #25292d;
+        --error-color: #ff4d4d;
+        --success-color: #4dff4d;
+        --button-secondary-bg: #5a6268;
+    }
+
+    .public-rooms-container {
+        font-family: var(--chakra-fonts-body);
+        padding: 20px;
+        height: 100%;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+
+    .flex-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    .card {
+        background-color: var(--card-background);
+        backdrop-filter: blur(10px);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        max-width: 420px;
+        width: 100%;
+    }
+
+    .card-title {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid var(--input-background);
+        background-color: var(--input-background);
+        box-sizing: border-box;
+    }
+
+    .btn {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .btn-primary {
+        display: inline-flex;
+        appearance: none;
+        -webkit-box-align: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        justify-content: center;
+        user-select: none;
+        position: relative;
+        white-space: normal;
+        vertical-align: middle;
+        outline: transparent solid 2px;
+        outline-offset: 2px;
+        line-height: 1.2;
+        font-weight: 700;
+        transition-property: var(--chakra-transition-property-common);
+        transition-duration: var(--chakra-transition-duration-normal);
+        text-transform: none;
+        min-width: 0px;
+        padding-inline: 24px;
+        height: 40px;
+        padding: 0px;
+        font-size: var(--chakra-fontSizes-md);
+        background: var(--chakra-colors-Cyan-Light);
+        color: var(--chakra-colors-MagicWhite);
+        border-radius: 14px;
+        width: 180px;
+        font-family: var(--chakra-fonts-body);
+    }
+
+    .btn-secondary {
+        background-color: var(--button-secondary-bg);
+    }
+
+    .btn-danger {
+        display: inline-flex;
+        appearance: none;
+        -webkit-box-align: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        justify-content: center;
+        user-select: none;
+        position: relative;
+        white-space: normal;
+        vertical-align: middle;
+        outline: transparent solid 2px;
+        outline-offset: 2px;
+        line-height: 1.2;
+        font-weight: 700;
+        transition-property: var(--chakra-transition-property-common);
+        transition-duration: var(--chakra-transition-duration-normal);
+        text-transform: none;
+        min-width: 0px;
+        padding-inline: 24px;
+        height: 40px;
+        padding: 0px;
+        font-size: var(--chakra-fontSizes-md);
+        background: var(--chakra-colors-Red-Magic);
+        color: var(--chakra-colors-MagicWhite);
+        border-radius: 14px;
+        width: 180px;
+        font-family: var(--chakra-fonts-body);
+
+    }
+
+    .btn-success {
+        display: inline-flex;
+        appearance: none;
+        -webkit-box-align: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        justify-content: center;
+        user-select: none;
+        position: relative;
+        white-space: normal;
+        vertical-align: middle;
+        outline: transparent solid 2px;
+        outline-offset: 2px;
+        line-height: 1.2;
+        font-weight: 700;
+        transition-property: var(--chakra-transition-property-common);
+        transition-duration: var(--chakra-transition-duration-normal);
+        text-transform: none;
+        min-width: 0px;
+        padding-inline: 24px;
+        height: 40px;
+        padding: 0px;
+        font-size: var(--chakra-fontSizes-md);
+        background: var(--chakra-colors-Green-Dark);
+        color: var(--chakra-colors-MagicWhite);
+        border-radius: 14px;
+        width: 180px;
+        font-family: var(--chakra-fonts-body);
+    }
+
+    .error-message {
+        color: var(--error-color);
+        margin-bottom: 10px;
+    }
+
+    #app-container header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        ;
+    }
+
+    #app-container header h2 {
+        margin: 0
+    }
+
+    #rooms-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+    }
+
+    .room-item {
+        background-color: var(--card-background);
+        padding: 15px;
+        border-radius: 8px;
+    }
+
+    .btn-wider {
+        width: 100% !important;
+    }
+
+    .input-tags {
+        width: 100%;
+        height: 40px;
+        padding-inline: 20px;
+        min-width: 0px;
+        outline: transparent solid 2px;
+        outline-offset: 2px;
+        position: relative;
+        appearance: none;
+        transition-property: var(--chakra-transition-property-common);
+        transition-duration: var(--chakra-transition-duration-normal);
+        font-weight: 700;
+        --input-font-size: var(--chakra-fontSizes-md);
+        --input-padding: var(--chakra-space-4);
+        --input-border-radius: radii.md;
+        --input-height: var(--chakra-sizes-10);
+        background-color: rgb(64, 64, 64);
+        color: rgb(245, 245, 245);
+        text-align: left;
+        font-size: var(--chakra-fontSizes-xs);
+        padding: 6px 6px 6px 12px;
+        border-radius: 10px;
+    }
+
+    .input-tags:focus {
+        box-shadow: white 0px 0px 0px 2px inset;
+    }
+
+    .input-tags::placeholder {
+        color: whiteAlpha.400 !important;
+    }
+
+    .tag-span {
+        display: inline-block;
+    }
+
+    .tag-div {
+        display: flex;
+        -webkit-box-align: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        place-content: center;
+        flex-direction: row;
+        width: auto;
+        height: auto;
+        background: rgba(0, 128, 128, 0.9);
+        padding-inline-start: var(--chakra-space-2);
+        padding-inline-end: var(--chakra-space-2);
+        padding-top: var(--chakra-space-1);
+        padding-bottom: var(--chakra-space-1);
+        border-radius: 6px;
+        opacity: 1;
+        position: relative;
+        border-width: 0px;
+        border-color: transparent;
+    }
+
+    .tab-div-tags {
+        display: flex;
+        -webkit-box-align: center;
+        align-items: center;
+        -webkit-box-pack: center;
+        flex-flow: wrap;
+        width: auto;
+        height: auto;
+        gap: var(--chakra-space-1);
+    }
+
+    .login-outer-div {
+        display: flex;
+        -webkit-box-align: center;
+        -webkit-box-pack: center;
+        place-content: center;
+        flex-direction: column;
+        gap: var(--chakra-space-2);
+        width: 100%;
+    }
+</style>
+
+<div class="public-rooms-container">
+    <div id="loading-indicator" class="flex-center">
+        <p>Initializing...</p>
+    </div>
+
+    <div id="login-container" class="flex-center hidden">
+        <div class="McFlex css-zntu13">
+            <h2 class="chakra-heading css-coabaj">Public Rooms</h1>
+            <div class="McFlex login-outer-div">
+                    <input type="email" class="chakra-input input-tags" id="email" placeholder="Email">
+                    <input type="password" class="chakra-input input-tags" id="password" placeholder="Password">
+            </div>
+
+            <div id="error-message" class="error-message"></div>
+            <div class="McFlex css-qd8y53">
+                <button id="sign-in-button" class="chakra-button btn-primary">Sign In</button>
+                <button id="create-account-button" class="chakra-button btn-success">Create Account</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" class="hidden">
+        <header style="flex-direction: column; display: flex;">
+            <h2 id="welcome-message" class="chakra-heading css-coabaj"></h2>
+            <div class="McFlex css-qd8y53">
+                <button id="refresh-rooms-button" class="chakra-button css-cimzff">Refresh Rooms</button>
+                <button id="sign-out-button" class="chakra-button btn-danger">Sign Out</button>
+            </div>
+        </header>
+
+        <div class="card" style="max-width: none;">
+            <h3 class="card-title">Make Current Room Public</h3>
+            <div class="McGrid css-1h3m0tx">
+                <input type="text" class="chakra-input input-tags" id="room-tags"
+                    placeholder="Tags (e.g. tag1, tag2, tag3)">
+            </div>
+            <div class="McFlex css-qd8y53"> <button id="create-room-button"
+                    class="chakra-button btn-success btn-wider">Make Room Public</button>
+                <button id="make-not-public-button" class="chakra-button btn-danger btn-wider hidden">Make Room Not
+                    Public</button>
+            </div>
+
+        </div>
+
+        <main>
+            <h3>Available Rooms</h3>
+            <div id="rooms-list"></div>
+        </main>
+
+        <div class="card" style="max-width: none; margin-top: 20px;">
+            <h3 class="card-title">Settings</h3>
+            <div class="form-group">
+                <label for="player-count-interval">Player Count Update Interval:</label>
+                <select id="player-count-interval" class="chakra-select css-qjtm8">
+                    <option value="1">1 Minute</option>
+                    <option value="5">5 Minutes</option>
+                    <option value="10">10 Minutes</option>
+                    <option value="30">30 Minutes</option>
+                    <option value="0">Never</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="refresh-interval">Room Refresh Count Update Interval:</label>
+                <select id="refresh-interval" class="chakra-select css-qjtm8">
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="60">1 minute</option>
+                    <option value="300">5 minutes</option>
+                    <option value="0">Never</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>

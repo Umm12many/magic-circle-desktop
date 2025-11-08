@@ -32,7 +32,7 @@
 
 /*Heres stuff to hack up the settings menu to fit new stuff*/
 .css-n51jeb {
-  width: calc(300% + var(--sail)) !important;
+  width: calc(350% + var(--sail)) !important;
 }
 .css-ip74o3 {
   flex-direction: row !important;

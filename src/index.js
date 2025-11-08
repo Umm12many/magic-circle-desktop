@@ -6,6 +6,7 @@ const WindowsToaster = require('node-notifier').WindowsToaster;
 
 const userDataPath = app.getPath('userData');
 const settingsPath = path.join(userDataPath, 'settings.json');
+const modSettingsPath = path.join(userDataPath, 'mod-settings.json');
 
 function getSettings() {
     try {
@@ -42,6 +43,24 @@ function getSettings() {
 
 function saveSettings(settings) {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2)); // Added null, 2 for pretty printing
+}
+
+function getModSettings() {
+    try {
+        const data = fs.readFileSync(modSettingsPath, 'utf8');
+        const settings = JSON.parse(data);
+        return settings;
+    } catch (error) {
+        const defaultSettings = {
+          
+        };
+        saveModSettings(defaultSettings);
+        return defaultSettings;
+    }
+}
+
+function saveModSettings(settings) {
+    fs.writeFileSync(modSettingsPath, JSON.stringify(settings, null, 2)); // Added null, 2 for pretty printing
 }
 
 //var serviceAccount = require("./backend-modules/firebase-credentials.json");
@@ -460,8 +479,10 @@ const commandConfig = {
 // 1. insertToApp function (moved to module scope and accepts mainWindow for clarity)
 function insertToApp(win) {
   try {
-    const cssToInject = fs.readFileSync(path.join(__dirname, 'inject.css'), 'utf8');
+    const cssToInject = fs.readFileSync(path.join(__dirname, 'styles/inject.css'), 'utf8');
     win.webContents.insertCSS(cssToInject);
+    const appStyles = fs.readFileSync(path.join(__dirname, 'styles/app-styles.css'), 'utf8');
+    win.webContents.insertCSS(appStyles);
     console.log('CSS injected.');
     //Injecting a modified version of MGTools to test notifications, will eventually fix up better system tho:
     //mainWindow.webContents.executeJavaScript(fs.readFileSync(path.join(__dirname, 'MGToolsModifiedNotifications.js'), 'utf-8'));
@@ -568,7 +589,8 @@ const createWindow = () => {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // Recommended for security
-      nodeIntegration: false,
+      nodeIntegration: true,
+      backgroundThrottling: false // Keep timers running in background  
     },
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -742,6 +764,24 @@ const createWindow = () => {
     return settings.mods && settings.mods[modName];
   });
 
+  ipcMain.handle('settings:get-mod-setting', (event, modName, settingKey) => {
+    const settings = getModSettings();
+    return settings.mods && settings.mods[modName] && settings.mods[modName][settingKey];
+  });
+
+  ipcMain.handle('settings:set-mod-setting', (event, modName, settingKey, value) => {
+    const settings = getModSettings();
+    if (!settings.mods) {
+      settings.mods = {};
+    }
+    if (!settings.mods[modName]) {
+      settings.mods[modName] = {};
+    }
+    settings.mods[modName][settingKey] = value;
+    saveModSettings(settings);
+    return true;
+  });
+
   ipcMain.on('app:relaunch', () => {
       app.relaunch();
       app.quit();
@@ -846,6 +886,133 @@ const createWindow = () => {
   });
 
   // --- Global Shortcuts (UNCHANGED) ---
+
+  // --- Firebase IPC Handlers ---
+  const firebaseHandler = require('./backend-modules/firebase-handler.js');
+
+  firebaseHandler.onAuthStateChanged(user => {
+      console.log('[Main Process] Auth state changed:', user ? user.uid : 'Logged out');
+      if (mainWindow) {
+          mainWindow.webContents.send('firebase:authStateChanged', user ? { uid: user.uid, email: user.email, displayName: user.displayName } : null);
+      }
+  });
+
+  ipcMain.handle('firebase:signIn', (event, email, password) => {
+     const userCredentialsJSON = path.join(userDataPath, 'user-credentials.json');
+     fs.writeFileSync(userCredentialsJSON, JSON.stringify({ email: email, password: password }));
+     return firebaseHandler.signIn(email, password);
+  });
+  ipcMain.handle('firebase:createAccount', (event, email, password) => firebaseHandler.createAccount(email, password));
+  ipcMain.handle('firebase:signOut', () => firebaseHandler.signOut());
+  ipcMain.handle('firebase:createRoom', (event, roomName, tags) => {
+      const user = firebaseHandler.auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+      return firebaseHandler.createRoom(roomName, tags, user);
+  });
+  ipcMain.handle('firebase:deleteRoom', (event, roomName) => firebaseHandler.deleteRoom(roomName));
+
+  ipcMain.handle('firebase:getRoomsOnce', async () => {
+      console.log('[Main Process] IPC: firebase:getRoomsOnce invoked.');
+      try {
+          const rooms = await firebaseHandler.getRoomsOnce();
+          return rooms; // Return rooms directly to the invoker
+      } catch (error) {
+          console.error('[Main Process] Error in firebase:getRoomsOnce:', error);
+          throw error;
+      }
+  });
+
+  ipcMain.handle('firebase:request-initial-data', async () => {
+      console.log('[Main Process] Initial data requested by UI.');
+      const userCredentialsJSON = path.join(userDataPath, 'user-credentials.json');
+      if (fs.existsSync(userCredentialsJSON) && fs.readFileSync(userCredentialsJSON, 'utf8').length > 0) {
+          const { email, password } = JSON.parse(fs.readFileSync(userCredentialsJSON, 'utf8'));
+          try {             await firebaseHandler.signIn(email, password);
+          } catch (error) {
+              console.error('[Main Process] Auto sign-in failed:', error);
+          }
+       }
+
+
+      const user = firebaseHandler.auth.currentUser;
+      if (mainWindow) {
+          mainWindow.webContents.send('firebase:authStateChanged', user ? { uid: user.uid, email: user.email, displayName: user.displayName } : null);
+      }
+  });
+
+  ipcMain.handle('game:get-current-room-code', () => {
+    if (mainWindow) {
+      const url = mainWindow.webContents.getURL();
+      const roomCodeMatch = url.match(/\/r\/([^?#]*)/);
+      return roomCodeMatch ? roomCodeMatch[1] : null;
+    }
+    return null;
+  });
+
+  ipcMain.handle('game:disable-input', () => {
+    if (mainWindow) {
+      mainWindow.webContents.executeJavaScript(`
+
+      `).catch(error => console.error('[Main Process] Error disabling game input:', error));
+      console.log('[Main Process] Game input disabled.');
+    }
+  });
+
+  ipcMain.handle('game:enable-input', () => {
+    if (mainWindow) {
+      mainWindow.webContents.executeJavaScript(`
+                    
+      `).catch(error => console.error('[Main Process] Error enabling game input:', error));
+      console.log('[Main Process] Game input enabled.');
+    }
+  });
+
+  ipcMain.handle('game:get-player-count', async () => {
+    if (mainWindow) {
+      try {
+        const playerCount = await mainWindow.webContents.executeJavaScript(`
+          new Promise((resolve) => {
+            const checkConnection = () => {
+              try {
+                const roomConnection = window.MagicCircle_RoomConnection;
+                if (roomConnection && roomConnection.lastRoomStateJsonable) {
+                  const roomState = roomConnection.lastRoomStateJsonable;
+                  const userSlots = roomState.child.data.userSlots;
+                  const count = userSlots.filter(slot => slot !== null && slot !== undefined).length;
+                  resolve(count);
+                } else {
+                  setTimeout(checkConnection, 500); // Retry after 500ms
+                }
+              } catch (err) {
+                console.error('Error checking MagicCircle_RoomConnection in game world:', err);
+                resolve(null); // Resolve with null on error
+              }
+            };
+            checkConnection(); // Start checking
+          });
+        `);
+        return playerCount;
+      } catch (error) {
+        console.error('[Main Process] Error getting player count from game world:', error);
+        return null;
+      }
+    }
+    return null;
+  });
+
+  ipcMain.handle('firebase:makeRoomPublic', async (event, roomCode, tags) => {
+      const user = firebaseHandler.auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+      return firebaseHandler.makeRoomPublic(roomCode, tags, user);
+  });
+
+  ipcMain.handle('firebase:makeRoomNotPublic', async (event, roomCode) => {
+      return firebaseHandler.makeRoomNotPublic(roomCode);
+  });
+
+  ipcMain.handle('firebase:updatePlayerCount', async (event, roomCode, count) => {
+      return firebaseHandler.updatePlayerCount(roomCode, count);
+  });
 
   app.on('browser-window-focus', function () {
     globalShortcut.register("CommandOrControl+R", async () => {

@@ -90,3 +90,6 @@ typings/
 
 # Electron-Forge
 out/
+
+# Firebase Credentials
+src/backend-modules/firebase-credentials.json

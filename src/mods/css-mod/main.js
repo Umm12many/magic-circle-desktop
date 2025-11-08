@@ -22,7 +22,7 @@ const setupCssMod = async () => {
 
   // Add the mod tab, passing mod.tabContent directly
   const creditsTab = document.getElementById('custom-tab-credits');
-  desktopApi.addCustomTab('CSS Mod Settings', mod.tabContent, "material-symbols " + mod.icon, (panel) => {
+  desktopApi.addModTab('CSS Mod Settings', mod.tabContent, mod.icon, (panel) => {
     console.log(`[${MOD_ID}] Mod tab setup function executed.`);
     const modsContainer = panel.querySelector('#mods-container');
     const switchTemplate = panel.querySelector('#css-mod-switch-template');

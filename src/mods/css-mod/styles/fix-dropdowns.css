@@ -1,0 +1,12 @@
+/* Example CSS Style */
+
+select {
+  background-color: transparent !important; /* May work in some browsers */
+}
+
+option {
+  background-color: #000 !important; /* Semi-transparent background */
+    color: #fff !important; /* Often works */
+    font-family: Arial, sans-serif  !important; /* May work in some browsers */
+    border-radius: 0% !important;
+}

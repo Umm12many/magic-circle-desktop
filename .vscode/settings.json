@@ -1,4 +1,10 @@
 {
     "workbench.iconTheme": "vs-seti",
-    "cmake.sourceDirectory": "E:/magic-circle-desktop/magic-circle-desktop/node_modules/node-hid/hidapi"
+    "cmake.sourceDirectory": "E:/magic-circle-desktop/magic-circle-desktop/node_modules/node-hid/hidapi",
+      "files.exclude": {
+    "**/out": true,
+  },
+  "search.exclude": {
+    "**/out": true,
+  }
 }

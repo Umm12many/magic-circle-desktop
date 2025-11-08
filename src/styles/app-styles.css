@@ -1,0 +1,87 @@
+.purple-mg-button {
+    display: inline-flex;
+    appearance: none;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    user-select: none;
+    position: relative;
+    vertical-align: middle;
+    outline-offset: 2px;
+    line-height: 1.2;
+    font-weight: 700;
+    transition-property: var(--chakra-transition-property-common);
+    transition-duration: var(--chakra-transition-duration-normal);
+    text-transform: uppercase;
+    height: var(--chakra-sizes-8);
+    min-width: var(--chakra-sizes-8);
+    font-size: var(--chakra-fontSizes-sm);
+    padding-inline-start: 14px;
+    padding-inline-end: 14px;
+    padding-top: 18px;
+    padding-bottom: 18px;
+    color: var(--chakra-colors-MagicWhite);
+    background-color: var(--chakra-colors-Purple-Light);
+    white-space: nowrap;
+    outline: transparent solid 2px;
+    border-radius: 20px;
+}
+
+.gray-mg-button {
+    display: inline-flex;
+    appearance: none;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    user-select: none;
+    position: relative;
+    white-space: normal;
+    vertical-align: middle;
+    outline: transparent solid 2px;
+    outline-offset: 2px;
+    line-height: 1.2;
+    font-weight: 700;
+    transition-property: var(--chakra-transition-property-common);
+    transition-duration: var(--chakra-transition-duration-normal);
+    text-transform: none;
+    min-width: 0px;
+    padding-inline: 24px;
+    height: 40px;
+    padding: 0px;
+    font-size: var(--chakra-fontSizes-md);
+    background: var(--chakra-colors-Neutral-DarkGrey);
+    color: var(--chakra-colors-MagicWhite);
+    border-radius: 14px;
+    width: 180px;
+}
+
+.light-green-mg-button {
+        display: inline-flex;
+    appearance: none;
+    -webkit-box-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    justify-content: center;
+    user-select: none;
+    position: relative;
+    white-space: nowrap;
+    vertical-align: middle;
+    outline: transparent solid 2px;
+    outline-offset: 2px;
+    line-height: 1.2;
+    border-radius: var(--chakra-radii-button);
+    font-weight: 700;
+    transition-property: var(--chakra-transition-property-common);
+    transition-duration: var(--chakra-transition-duration-normal);
+    text-transform: uppercase;
+    height: auto;
+    min-width: var(--chakra-sizes-10);
+    font-size: var(--chakra-fontSizes-md);
+    padding-inline: 24px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    color: var(--chakra-colors-MagicWhite);
+    background: var(--chakra-colors-Cyan-Light);
+}
