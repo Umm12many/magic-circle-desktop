@@ -3,10 +3,23 @@ const path = require('node:path');
 const fs = require('node:fs');
 const DiscordRPC = require('discord-rpc');
 const WindowsToaster = require('node-notifier').WindowsToaster;
+const { updateElectronApp, UpdateSourceType } = require('update-electron-app');
+require('dotenv').config(); // Load environment variables from .env file
+updateElectronApp(
+{
+    updateSource: {
+    type: UpdateSourceType.ElectronPublicUpdateService,
+    repo: 'Umm12many/magic-circle-desktop'
+  },
+  updateInterval: '1 hour',
+
+}
+); // additional configuration options available
 
 const userDataPath = app.getPath('userData');
 const settingsPath = path.join(userDataPath, 'settings.json');
 const modSettingsPath = path.join(userDataPath, 'mod-settings.json');
+
 
 function getSettings() {
     try {

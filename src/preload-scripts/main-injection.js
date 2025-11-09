@@ -1,4 +1,4 @@
-        magicCircleDesktopVersion = "Canary0.1.1";
+magicCircleDesktopVersion = process.env.MAGIC_GARDEN_APP_VERSION || '???.???.???';
         let tabListenerAdded = false;
         let aboutTabRepositioned = false;
 
@@ -680,10 +680,6 @@ function convertMp3ToBase64(mp3File, callback) {
                             if ((node.matches && node.matches('.chakra-tabs__tablist')) || (node.querySelector && node.querySelector('.chakra-tabs__tablist'))) {
                                 injectDiv();
                                 return;
-                            }
-                            // will change this to a mod soon, just cleaning up this area so i can easily make changes quickly 
-                            else if ((node.matches && node.matches('.css-io4kx3')) || (node.querySelector && node.querySelector('.chakra-tabs__tab-panels'))) {
-                                node.parentElement.parentElement.removeChild(node.parentElement);
                             }
                         }
                         for (const node of mutation.removedNodes) {
