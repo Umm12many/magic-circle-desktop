@@ -697,6 +697,38 @@ function convertMp3ToBase64(mp3File, callback) {
               childList: true, // Watch for direct children changes
               subtree: true    // Watch for all descendants
             });
+
+            // --- IMMEDIATE MOD LOADING ON DOM CONTENT LOADED ---
+            const loadModsImmediately = async () => {
+                console.log('[MagicGardenDesktop] Loading mods immediately on DOMContentLoaded...');
+
+                try {
+                    const { disableMods } = await ipcRenderer.invoke('settings:get-mod-settings');
+
+                    if (!disableMods) {
+                        const mods = await ipcRenderer.invoke('get-mods');
+                        console.log('[MagicGardenDesktop] Retrieved mods:', mods.map(m => m.name));
+
+                        for (const mod of mods) {
+                            const isEnabled = await ipcRenderer.invoke('settings:get-mod-enabled', mod.id);
+                            if (isEnabled) {
+                                try {
+                                    console.log(`[MagicGardenDesktop] Loading mod: ${mod.name}`);
+                                    new Function('require', 'ipcRenderer', 'process', 'desktopApi', 'mod', mod.content)(require, ipcRenderer, process, desktopApi, mod);
+                                    console.log(`[MagicGardenDesktop] Successfully loaded mod: ${mod.name}`);
+                                } catch (error) {
+                                    console.error(`[MagicGardenDesktop] Failed to execute mod: ${mod.name}`, error);
+                                }
+                            }
+                        }
+                    } else {
+                        console.log('[MagicGardenDesktop] Mods are disabled globally.');
+                    }
+                } catch (error) {
+                    console.error('[MagicGardenDesktop] Error loading mods immediately:', error);
+                }
+            };
+
   // Execute insertToApp in the main process via IPC, as requested
 
     const updateTitleFromUrl = () => {
@@ -751,3 +783,6 @@ function convertMp3ToBase64(mp3File, callback) {
                 tabListenerAdded = false;
                 aboutTabRepositioned = false; // Reset aboutTabRepositioned flag
               }
+
+
+              loadModsImmediately();
