@@ -1,5 +1,5 @@
 {
-  "name": "Keep Game Running Mod",
+  "name": "Keep Game Running Mod (DOES NOTHING RIGHT NOW, IS ENABLED AUTOMATICALLY)",
   "description": "Prevents the game from pausing when the window loses focus or the tab becomes hidden.",   
   "author": "Norman",
   "file": "main.js",

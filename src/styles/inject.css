@@ -1,35 +1,3 @@
-/*.titlebar {
-  height: 40px;
-  background: #2b3035;
-  color: white;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  app-region: drag;
-  position: fixed;
-  top: 0;
-  width: 100%;
-  z-index: 10000000000;
-  font-family: Arial, serif;
-} No Longer needs to be Injected (New Change)*/
-  /*This is the Main Game Container*/
-  #root {
-
-  }
-  /*These are the Slide Out things like the shop and the settings window.*/
-  .css-wpcgs8, .css-dcdgaq, #PartyDrawer {
-
-}
-
-.css-mfwgxj {
-    /*padding-bottom: 3rem !important; */
-}
-/*Using Root to control the variables, ALWAYS USE !important AT THE END OF THESE SO THEY OVERRIDE */
-:root {
-  /*--sait: 40px !important; No Longer needs to be Injected (New Change)*/
-}
-
-
 /*Heres stuff to hack up the settings menu to fit new stuff*/
 .css-n51jeb {
   width: calc(350% + var(--sail)) !important;

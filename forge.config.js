@@ -40,7 +40,8 @@ module.exports = {
           name: 'magic-circle-desktop'
         },
         authToken: process.env.GITHUB_TOKEN,
-        prerelease: true
+        prerelease: false,
+        draft: false
       }
     }
   ],
