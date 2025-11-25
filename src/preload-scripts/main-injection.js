@@ -1,4 +1,6 @@
-magicCircleDesktopVersion = process.env.MAGIC_GARDEN_APP_VERSION || '???.???.???';
+//magicCircleDesktopVersion = process.env.MAGIC_GARDEN_APP_VERSION || '???.???.???';
+//Temporary Manual Override
+        magicCircleDesktopVersion = "0.1.5"
         let tabListenerAdded = false;
         let aboutTabRepositioned = false;
 

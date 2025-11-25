@@ -1,7 +1,7 @@
 {
   "name": "magic-garden",
   "productName": "Magic Garden Desktop App",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The desktop application for Magic Garden, made by Umm12many with some spice mixed in from Avi one of the actual game developers!",
   "main": "src/index.js",
   "scripts": {

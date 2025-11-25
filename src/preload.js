@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const magicCircleDesktopVersion = "Canary0.0.1";
+const magicCircleDesktopVersion = "0.1.5";
 
 contextBridge.exposeInMainWorld('versions', {
   node: () => process.versions.node,
