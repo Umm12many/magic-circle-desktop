@@ -29,7 +29,7 @@ const desktopApi = {
   },
   settings: {
     getCurrentDomain: () => ipcRenderer.invoke('settings:get-current-domain'),
-    setDomain: (domain, isBeta) => ipcRenderer.invoke('settings:set-domain', domain, isBeta),
+    setDomain: (domain, isBeta, keepGameAlive) => ipcRenderer.invoke('settings:set-domain', domain, isBeta, keepGameAlive),
     setSfxVolume: (volume) => ipcRenderer.invoke('settings:set-sfx-volume', volume)
   }
 };

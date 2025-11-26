@@ -1266,9 +1266,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
   // ==================== SELECTIVE CONTEXT ISOLATION ====================
   // Detect userscript environment and use unsafeWindow for page access (like v3.5.7)
-  const isUserscript = typeof unsafeWindow !== 'undefined';
-  const targetWindow = isUserscript ? unsafeWindow : window;
-  const targetDocument = targetWindow.document;
+  const isUserscript = true ;
+  const targetDocument = window.document;
 
   // Track which atoms have been hooked to prevent duplicates
   const hookedAtoms = new Set();
@@ -1285,7 +1284,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     try {
       // Method 1: Check if store is directly exposed on window
-      const directStore = targetWindow.__jotaiStore || targetWindow.jotaiStore;
+      const directStore = window.__jotaiStore || window.jotaiStore;
       if (directStore && typeof directStore.get === 'function' && typeof directStore.set === 'function') {
         jotaiStore = directStore;
         console.log('✅ [STORE] Captured Jotai store from window.__jotaiStore');
@@ -1293,7 +1292,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       }
 
       // Method 2: Try React DevTools hook (original method)
-      const hook = targetWindow.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+      const hook = window.__REACT_DEVTOOLS_GLOBAL_HOOK__;
       if (hook?.renderers?.size) {
         for (const [rid] of hook.renderers) {
           const roots = hook.getFiberRoots?.(rid);
@@ -1330,7 +1329,9 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       }
 
       // Method 3: Try to extract store from an atom in the cache
-      const atomCache = targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache;
+
+      const atomCache = window.jotaiAtomCache?.cache || window.jotaiAtomCache;
+      console.log(atomCache);
       if (atomCache && atomCache.size > 0) {
         // Try to find the store reference in any atom's metadata
         for (const [key, value] of atomCache.entries()) {
@@ -1356,7 +1357,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
   async function getAtomValue(atomLabel) {
     try {
       // Get atom from cache by label
-      const atomCache = targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache;
+      const atomCache = window.jotaiAtomCache?.cache || window.jotaiAtomCache;
       if (!atomCache) {
         return null;
       }
@@ -1419,7 +1420,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     }
   }
 
-  // Set context identifier for debugging (use window not targetWindow to avoid modifying page)
+  // Set context identifier for debugging (use window not window to avoid modifying page)
   window.MGA_CONTEXT = 'userscript';
 
   // ==================== JOTAI ATOM CACHE WATCHER ====================
@@ -1428,7 +1429,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
   function watchForAtomCache(callback) {
     // If already available, call immediately
-    if (targetWindow.jotaiAtomCache) {
+    if (window.jotaiAtomCache) {
       callback();
       return;
     }
@@ -1439,7 +1440,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     // Set up observer only once
     if (atomCacheWatcherCallbacks.length === 1) {
       const observer = new MutationObserver(() => {
-        if (targetWindow.jotaiAtomCache) {
+        if (window.jotaiAtomCache) {
           console.log('✅ [ATOM-WATCH] jotaiAtomCache detected via MutationObserver');
           observer.disconnect();
           const callbacks = atomCacheWatcherCallbacks;
@@ -1448,7 +1449,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         }
       });
 
-      // Watch for property additions to targetWindow
+      // Watch for property additions to window
       observer.observe(document.documentElement, {
         childList: true,
         subtree: true
@@ -1456,7 +1457,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       // Also poll as backup (very infrequent)
       const pollInterval = setInterval(() => {
-        if (targetWindow.jotaiAtomCache) {
+        if (window.jotaiAtomCache) {
           clearInterval(pollInterval);
           observer.disconnect();
           console.log('✅ [ATOM-WATCH] jotaiAtomCache detected via polling');
@@ -1482,10 +1483,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     // Method 1: Direct cache access (fastest when available)
     tryDirectCache() {
-      // Check targetWindow first (unsafeWindow = page context), then fallback to window
+      // Check window first (unsafeWindow = page context), then fallback to window
       const cache =
-        targetWindow.jotaiAtomCache?.cache ||
-        targetWindow.jotaiAtomCache ||
+        window.jotaiAtomCache?.cache ||
+        window.jotaiAtomCache ||
         window.jotaiAtomCache?.cache ||
         window.jotaiAtomCache;
 
@@ -1499,7 +1500,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     // Method 2: React DevTools Fiber Traversal (for iframes)
     tryFiberTraversal() {
-      const hook = targetWindow.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+      const hook = window.__REACT_DEVTOOLS_GLOBAL_HOOK__;
       if (!hook?.renderers?.size) return false;
 
       for (const [rendererID] of hook.renderers) {
@@ -1549,7 +1550,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     // Method 3: Write-intercept fallback (patches atom write functions)
     async tryWriteIntercept(timeoutMs = 5000) {
-      const cache = targetWindow.jotaiAtomCache?.cache;
+      const cache = window.jotaiAtomCache?.cache;
       if (!cache) return false;
 
       let capturedStore = null;
@@ -1649,7 +1650,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
   // ==================== API BASE URL HELPER (MUST BE EARLY) ====================
   // This function MUST be defined early because roomsInfo() IIFE needs it immediately
   // Determines correct API base URL to prevent 404 errors in Discord browser
-  targetWindow.getGameApiBaseUrl = function () {
+  window.getGameApiBaseUrl = function () {
     try {
       // Check if we're in Discord browser or Discord activity
       const isDiscordHost =
@@ -1680,12 +1681,12 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
   };
 
   // Also define as regular function for convenience
-  const getGameApiBaseUrl = targetWindow.getGameApiBaseUrl;
+  const getGameApiBaseUrl = window.getGameApiBaseUrl;
 
   // Verify function is accessible and log current API base
   console.log('✅ [API-BASE] getGameApiBaseUrl() defined and accessible');
   try {
-    console.log('🔗 [API-BASE] Current API base:', targetWindow.getGameApiBaseUrl());
+    console.log('🔗 [API-BASE] Current API base:', window.getGameApiBaseUrl());
   } catch (e) {
     console.error('❌ [API-BASE] Function exists but failed to execute:', e);
   }
@@ -1932,8 +1933,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         details,
         domState: document.readyState,
         gameElements: {
-          jotaiAtoms: !!(targetWindow && targetWindow.jotaiAtomCache),
-          magicCircle: !!(targetWindow && targetWindow.MagicCircle_RoomConnection),
+          jotaiAtoms: !!(window && window.jotaiAtomCache),
+          magicCircle: !!(window && window.MagicCircle_RoomConnection),
           canvas: !!document.querySelector('canvas'),
           gameContainer: !!document.querySelector('#game-container, #app, .game-wrapper, main')
         }
@@ -1960,7 +1961,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         issue,
         details,
         context: {
-          targetWindow: targetWindow === window ? 'same' : 'different',
+          window: window === window ? 'same' : 'different',
           targetDocument: targetDocument === document ? 'same' : 'different',
           gmApiAvailable: isGMApiAvailable()
         }
@@ -1996,7 +1997,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     logStage('DEBUG_SYSTEM_INITIALIZED', {
       userAgent: navigator.userAgent,
       url: window.location.href,
-      contextDetection: { targetWindow: targetWindow.constructor.name }
+      contextDetection: { window: window.constructor.name }
     });
 
     return window.MGA_DEBUG;
@@ -3132,7 +3133,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       }
     }
 
-    const forceInit = targetWindow.location.search.includes('force=true') || window._MGA_FORCE_INIT;
+    const forceInit = window.location.search.includes('force=true') || window._MGA_FORCE_INIT;
 
     if ((window._MGA_INITIALIZING || window._MGA_INITIALIZED) && !forceInit) {
       productionLog('🔒 MGA already initializing or initialized, stopping duplicate execution');
@@ -3343,7 +3344,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     };
 
     // Export UnifiedState for debugging and external access
-    targetWindow.UnifiedState = UnifiedState;
+    window.UnifiedState = UnifiedState;
 
     /* CHECKPOINT removed: UNIFIED_STATE_COMPLETE */
 
@@ -3411,11 +3412,11 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     // Get actual player count from game's room state
     function getActualPlayerCount() {
       try {
-        const roomState = targetWindow.MagicCircle_RoomConnection?.lastRoomStateJsonable;
+        const roomState = window.MagicCircle_RoomConnection?.lastRoomStateJsonable;
         if (!roomState?.child?.data?.userSlots) {
           if (UnifiedState.data.settings.roomDebugMode) {
             console.log('[Room Status] No userSlots data available', {
-              hasRoomConnection: !!targetWindow.MagicCircle_RoomConnection,
+              hasRoomConnection: !!window.MagicCircle_RoomConnection,
               hasRoomState: !!roomState,
               hasChild: !!roomState?.child,
               hasData: !!roomState?.child?.data
@@ -4029,7 +4030,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       productionLog('🔧 [DEBUG] getActivePetsFromRoomState() called - checking for pets...');
       try {
         // CORRECT path: Get the actual atom value that console shows
-        const roomState = targetWindow.MagicCircle_RoomConnection?.lastRoomStateJsonable;
+        const roomState = window.MagicCircle_RoomConnection?.lastRoomStateJsonable;
         // Reduced logging for performance
         // productionLog('🔧 [DEBUG] roomState available:', !!roomState, roomState?.child?.data ? 'data exists' : 'no data');
         if (!roomState?.child?.data) {
@@ -4196,19 +4197,19 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         isStandalone: false,
         isDiscordEmbed: false,
         gameReady: false,
-        url: targetWindow.location.href,
-        hasJotaiAtoms: !!((targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache)?.size > 0),
+        url: window.location.href,
+        hasJotaiAtoms: !!((window.jotaiAtomCache?.cache || window.jotaiAtomCache)?.size > 0),
         hasMagicCircleConnection: !!(
-          targetWindow.MagicCircle_RoomConnection && typeof targetWindow.MagicCircle_RoomConnection === 'object'
+          window.MagicCircle_RoomConnection && typeof window.MagicCircle_RoomConnection === 'object'
         ),
-        domain: targetWindow.location.hostname,
+        domain: window.location.hostname,
         readyState: document.readyState
       };
 
       // DEBUG: Log environment details at start
       productionLog('🔍 [ENV-DEBUG] Detecting environment:', {
         domain: environment.domain,
-        pathname: targetWindow.location.pathname,
+        pathname: window.location.pathname,
         url: environment.url,
         hasAtoms: environment.hasJotaiAtoms,
         hasConnection: environment.hasMagicCircleConnection
@@ -4218,7 +4219,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       // This ensures that when running inside game iframe in Discord, we detect game mode
       const gameHosts = ['magiccircle.gg', 'magicgarden.gg', 'starweaver.org', 'discordsays.com'];
       const isGameDomain = gameHosts.some(host => environment.domain.includes(host));
-      const hasGamePath = targetWindow.location.pathname.includes('/r/');
+      const hasGamePath = window.location.pathname.includes('/r/');
       const isDiscordActivity = environment.domain.includes('discordsays.com');
 
       productionLog('🔍 [ENV-DEBUG] Game checks:', {
@@ -4483,8 +4484,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         // Collect ALL accessible localStorage contexts
         const lsMain = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         const lsTarg =
-          typeof targetWindow !== 'undefined' && targetWindow && targetWindow.localStorage
-            ? targetWindow.localStorage
+          typeof window !== 'undefined' && window && window.localStorage
+            ? window.localStorage
             : null;
 
         const readLS = (ls, k) => {
@@ -4553,7 +4554,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         let best = null;
         let bestSrc = 'none';
-        // Prioritize GM storage, then window.localStorage, then targetWindow.localStorage
+        // Prioritize GM storage, then window.localStorage, then window.localStorage
         // Reject empty objects and arrays explicitly
         if (gmParsed && !isEmpty(gmParsed)) {
           best = gmParsed;
@@ -4608,8 +4609,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         const lsMain = typeof window !== 'undefined' && window && window.localStorage ? window.localStorage : null;
         const lsTarg =
-          typeof targetWindow !== 'undefined' && targetWindow && targetWindow.localStorage
-            ? targetWindow.localStorage
+          typeof window !== 'undefined' && window && window.localStorage
+            ? window.localStorage
             : null;
 
         const readLS = (ls, k) => {
@@ -4982,15 +4983,15 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         report.locations.windowLocalStorage = { error: e.message };
       }
 
-      // Check targetWindow.localStorage (if different from window)
+      // Check window.localStorage (if different from window)
       try {
         if (
-          typeof targetWindow !== 'undefined' &&
-          targetWindow &&
-          targetWindow !== window &&
-          targetWindow.localStorage
+          typeof window !== 'undefined' &&
+          window &&
+          window !== window &&
+          window.localStorage
         ) {
-          const tgValue = targetWindow.localStorage.getItem(key);
+          const tgValue = window.localStorage.getItem(key);
           if (tgValue) {
             try {
               const parsed = JSON.parse(tgValue);
@@ -5385,11 +5386,11 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         clearFlag: lsClearFlag
       };
 
-      // 3. TargetWindow localStorage (if different from window)
-      if (typeof targetWindow !== 'undefined' && targetWindow && targetWindow !== window) {
-        const tgMain = safeGet(() => targetWindow.localStorage?.getItem('MGA_petAbilityLogs'), 'TG Main');
-        const tgArchive = safeGet(() => targetWindow.localStorage?.getItem('MGA_petAbilityLogs_archive'), 'TG Archive');
-        report.sources.targetWindowLocalStorage = {
+      // 3. window localStorage (if different from window)
+      if (typeof window !== 'undefined' && window && window !== window) {
+        const tgMain = safeGet(() => window.localStorage?.getItem('MGA_petAbilityLogs'), 'TG Main');
+        const tgArchive = safeGet(() => window.localStorage?.getItem('MGA_petAbilityLogs_archive'), 'TG Archive');
+        report.sources.windowLocalStorage = {
           main: parseAndCount(tgMain, 'TG Main'),
           archive: parseAndCount(tgArchive, 'TG Archive')
         };
@@ -5475,10 +5476,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       console.log('  Archive:', report.sources.windowLocalStorage.archive.count, 'logs');
       console.log('  Clear flag:', report.sources.windowLocalStorage.clearFlag);
 
-      if (report.sources.targetWindowLocalStorage) {
+      if (report.sources.windowLocalStorage) {
         console.log('📁 Target Window localStorage:');
-        console.log('  Main:', report.sources.targetWindowLocalStorage.main.count, 'logs');
-        console.log('  Archive:', report.sources.targetWindowLocalStorage.archive.count, 'logs');
+        console.log('  Main:', report.sources.windowLocalStorage.main.count, 'logs');
+        console.log('  Archive:', report.sources.windowLocalStorage.archive.count, 'logs');
       }
 
       if (report.sources.mgaDataNested) {
@@ -5514,9 +5515,9 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       showLogs('GM Storage (Archive)', report.sources.gmStorage.archive.logs);
       showLogs('Window localStorage (Main)', report.sources.windowLocalStorage.main.logs);
       showLogs('Window localStorage (Archive)', report.sources.windowLocalStorage.archive.logs);
-      if (report.sources.targetWindowLocalStorage) {
-        showLogs('TargetWindow localStorage (Main)', report.sources.targetWindowLocalStorage.main.logs);
-        showLogs('TargetWindow localStorage (Archive)', report.sources.targetWindowLocalStorage.archive.logs);
+      if (report.sources.windowLocalStorage) {
+        showLogs('window localStorage (Main)', report.sources.windowLocalStorage.main.logs);
+        showLogs('window localStorage (Archive)', report.sources.windowLocalStorage.archive.logs);
       }
       if (report.sources.mgaDataNested?.logs?.logs) {
         showLogs('MGA_data nested', report.sources.mgaDataNested.logs.logs);
@@ -5530,9 +5531,9 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         report.sources.windowLocalStorage.main,
         report.sources.windowLocalStorage.archive
       ];
-      if (report.sources.targetWindowLocalStorage) {
-        allSources.push(report.sources.targetWindowLocalStorage.main);
-        allSources.push(report.sources.targetWindowLocalStorage.archive);
+      if (report.sources.windowLocalStorage) {
+        allSources.push(report.sources.windowLocalStorage.main);
+        allSources.push(report.sources.windowLocalStorage.archive);
       }
 
       const totalMalformed = allSources.reduce((sum, src) => sum + (src.malformedCount || 0), 0);
@@ -5675,19 +5676,19 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     }
 
     // Export migration functions for debugging
-    targetWindow.MGA_migrateFromLocalStorage = MGA_migrateFromLocalStorage;
-    targetWindow.MGA_getMigrationStatus = MGA_getMigrationStatus;
-    targetWindow.MGA_saveJSON = MGA_saveJSON;
-    targetWindow.MGA_loadJSON = MGA_loadJSON;
+    window.MGA_migrateFromLocalStorage = MGA_migrateFromLocalStorage;
+    window.MGA_getMigrationStatus = MGA_getMigrationStatus;
+    window.MGA_saveJSON = MGA_saveJSON;
+    window.MGA_loadJSON = MGA_loadJSON;
 
     // Export startIntervals for debugging and emergency use
-    targetWindow.startIntervals = startIntervals;
+    window.startIntervals = startIntervals;
 
     // Pet hunger state tracking
     const lastPetHungerStates = {};
 
     // ==================== COMPREHENSIVE DEBUG COLLECTION ====================
-    targetWindow.collectMGADebug = function () {
+    window.collectMGADebug = function () {
       productionLog('🔍 Starting comprehensive MGA debug collection...');
 
       const debugData = {
@@ -5702,12 +5703,12 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           protectedGlobals:
             (typeof MGAIsolationSystem !== 'undefined' ? MGAIsolationSystem?.protectedGlobals : []) || [],
           globalFunctions: {
-            hasLoadJSON: typeof targetWindow.loadJSON !== 'undefined',
-            hasSaveJSON: typeof targetWindow.saveJSON !== 'undefined',
+            hasLoadJSON: typeof window.loadJSON !== 'undefined',
+            hasSaveJSON: typeof window.saveJSON !== 'undefined',
             loadJSONOwner:
-              typeof targetWindow.loadJSON !== 'undefined' && targetWindow.loadJSON === MGA_loadJSON ? 'MGA' : 'Other',
+              typeof window.loadJSON !== 'undefined' && window.loadJSON === MGA_loadJSON ? 'MGA' : 'Other',
             saveJSONOwner:
-              typeof targetWindow.saveJSON !== 'undefined' && targetWindow.saveJSON === MGA_saveJSON ? 'MGA' : 'Other'
+              typeof window.saveJSON !== 'undefined' && window.saveJSON === MGA_saveJSON ? 'MGA' : 'Other'
           }
         },
 
@@ -5739,7 +5740,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           watchedSeeds: UnifiedState?.data?.settings?.notifications?.watchedSeeds || [],
           watchedEggs: UnifiedState?.data?.settings?.notifications?.watchedEggs || [],
           shopData: {
-            globalShop: typeof targetWindow.globalShop !== 'undefined' ? 'Present' : 'Missing',
+            globalShop: typeof window.globalShop !== 'undefined' ? 'Present' : 'Missing',
             quinoaData: UnifiedState?.atoms?.quinoaData ? 'Present' : 'Missing',
             seedTimer: UnifiedState?.data?.timers?.seed,
             eggTimer: UnifiedState?.data?.timers?.egg,
@@ -5752,7 +5753,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         weatherSystem: {
           enabled: UnifiedState?.data?.settings?.notifications?.weatherNotificationsEnabled || false,
           watchedEvents: UnifiedState?.data?.settings?.notifications?.watchedWeatherEvents || [],
-          currentWeather: targetWindow.roomState?.child?.data?.weather || targetWindow.roomState?.weather || 'Unknown',
+          currentWeather: window.roomState?.child?.data?.weather || window.roomState?.weather || 'Unknown',
           // eslint-disable-next-line no-use-before-define
           lastWeatherState: typeof lastWeatherState !== 'undefined' ? lastWeatherState : null
         },
@@ -5790,9 +5791,9 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         // External Feed Protection
         autoFeedStatus: {
-          autoFeedEnabled: targetWindow.autoFeedEnabled,
-          autoFeedState: targetWindow.autoFeedState,
-          autoFeedSkipFavorited: targetWindow.autoFeedSkipFavorited,
+          autoFeedEnabled: window.autoFeedEnabled,
+          autoFeedState: window.autoFeedState,
+          autoFeedSkipFavorited: window.autoFeedSkipFavorited,
           protection:
             typeof MGAIsolationSystem !== 'undefined' ? MGAIsolationSystem?.isAutofeedProtected || false : false
         },
@@ -6497,19 +6498,19 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     function safeSendMessage(message) {
       try {
         // Check for connection availability
-        if (!targetWindow.MagicCircle_RoomConnection) {
+        if (!window.MagicCircle_RoomConnection) {
           productionWarn('⚠️ MagicCircle_RoomConnection not available');
           return false;
         }
 
         // Validate that sendMessage exists and is a function
-        if (typeof targetWindow.MagicCircle_RoomConnection.sendMessage !== 'function') {
+        if (typeof window.MagicCircle_RoomConnection.sendMessage !== 'function') {
           productionWarn('⚠️ sendMessage is not a function or not available');
           return false;
         }
 
         // Send the message
-        targetWindow.MagicCircle_RoomConnection.sendMessage(message);
+        window.MagicCircle_RoomConnection.sendMessage(message);
         return true;
       } catch (error) {
         console.error('❌ Error sending message:', error);
@@ -6521,13 +6522,13 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     function sendToGame(payloadObj) {
       const msg = { scopePath: ['Room', 'Quinoa'], ...payloadObj };
       try {
-        if (!targetWindow.MagicCircle_RoomConnection || !targetWindow.MagicCircle_RoomConnection.sendMessage) {
+        if (!window.MagicCircle_RoomConnection || !window.MagicCircle_RoomConnection.sendMessage) {
           productionWarn('⚠️ MagicCircle_RoomConnection not available for sendToGame');
           return false;
         }
 
         productionLog('🎮 sendToGame:', msg);
-        targetWindow.MagicCircle_RoomConnection.sendMessage(msg);
+        window.MagicCircle_RoomConnection.sendMessage(msg);
         return true;
       } catch (error) {
         console.error('❌ sendToGame error:', error);
@@ -6565,14 +6566,14 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     // --- RoomConnection wiring ---
     const RC =
-      targetWindow.MagicCircle_RoomConnection ||
+      window.MagicCircle_RoomConnection ||
       window.RoomConnection?.instance ||
-      targetWindow?.MagicCircle_RoomConnection ||
+      window?.MagicCircle_RoomConnection ||
       null;
 
     // Install bulletproof WebSocket tap (doesn't rely on RC._socket)
     (function installWsTap() {
-      const WS = targetWindow.WebSocket || window.WebSocket;
+      const WS = window.WebSocket || window.WebSocket;
       if (!WS || WS.prototype.__mgaTapInstalled) return;
       const origAdd = WS.prototype.addEventListener;
       const subs = new Set();
@@ -6615,7 +6616,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         }
       });
 
-      targetWindow.__mgaSubscribeServer = fn => {
+      window.__mgaSubscribeServer = fn => {
         subs.add(fn);
         return () => subs.delete(fn);
       };
@@ -6653,7 +6654,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     // Wait for one matching server message using the bulletproof tap
     async function waitForServer(predicate, timeoutMs = 3500) {
       return new Promise((resolve, reject) => {
-        const unsub = (window.__mgaSubscribeServer || targetWindow.__mgaSubscribeServer)(msg => {
+        const unsub = (window.__mgaSubscribeServer || window.__mgaSubscribeServer)(msg => {
           try {
             if (predicate(msg)) {
               unsub();
@@ -6671,7 +6672,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     // Add debug helper to peek at incoming messages
     async function peekNextMessages(count = 10, windowMs = 1500) {
       const seen = [];
-      const unsub = (window.__mgaSubscribeServer || targetWindow.__mgaSubscribeServer)(m => {
+      const unsub = (window.__mgaSubscribeServer || window.__mgaSubscribeServer)(m => {
         if (seen.length < count) seen.push(m?.type || typeof m);
       });
       await new Promise(res => setTimeout(res, windowMs));
@@ -6828,21 +6829,21 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       // DIAGNOSTIC: Check multiple possible locations for jotaiAtomCache
       if (retryCount === 0) {
         console.log(
-          '  - targetWindow.jotaiAtomCache:',
-          typeof targetWindow.jotaiAtomCache,
-          targetWindow.jotaiAtomCache
+          '  - window.jotaiAtomCache:',
+          typeof window.jotaiAtomCache,
+          window.jotaiAtomCache
         );
         console.log('  - isUserscript:', isUserscript, '(using unsafeWindow:', isUserscript ? 'YES' : 'NO)');
-        const jotaiKeys = Object.keys(targetWindow).filter(k => k.toLowerCase().includes('jotai'));
-        console.log('  - Keys with "jotai" on targetWindow:', jotaiKeys);
+        const jotaiKeys = Object.keys(window).filter(k => k.toLowerCase().includes('jotai'));
+        console.log('  - Keys with "jotai" on window:', jotaiKeys);
       }
 
       // Try multiple contexts for jotaiAtomCache (cascading fallback)
       let atomCache = null;
 
-      // Priority 1: Check targetWindow (should be window in page context)
-      if (targetWindow.jotaiAtomCache) {
-        atomCache = targetWindow.jotaiAtomCache.cache || targetWindow.jotaiAtomCache;
+      // Priority 1: Check window (should be window in page context)
+      if (window.jotaiAtomCache) {
+        atomCache = window.jotaiAtomCache.cache || window.jotaiAtomCache;
       }
       // Priority 2: Check window directly
       if (!atomCache && window.jotaiAtomCache) {
@@ -6857,7 +6858,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           console.error(
             `❌ [ATOM-HOOK] Gave up waiting for atom store for ${windowKey} after ${maxRetries} retries (${maxRetries / 2}s)`
           );
-          console.error(`❌ [ATOM-HOOK] Final check - targetWindow.jotaiAtomCache:`, targetWindow.jotaiAtomCache);
+          console.error(`❌ [ATOM-HOOK] Final check - window.jotaiAtomCache:`, window.jotaiAtomCache);
           console.error(`❌ [ATOM-HOOK] Using unsafeWindow:`, isUserscript);
           console.error(`❌ [ATOM-HOOK] Script will continue with reduced functionality`);
           productionWarn(`⚠️ [ATOM-HOOK] Gave up waiting for atom store for ${windowKey} after ${maxRetries} retries`);
@@ -6969,7 +6970,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       // Method 1: Try to hook via jotaiAtomCache
       const tryHookingViaCache = () => {
-        const atomCache = targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache;
+        const atomCache = window.jotaiAtomCache?.cache || window.jotaiAtomCache;
         if (!atomCache || !atomCache.get) {
           productionLog('⏳ [SLOT-ATOM] Waiting for jotaiAtomCache...');
           return false;
@@ -7048,8 +7049,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         // ==================== MULTI-HARVEST SYNC HELPERS ====================
 
         // Define target context for consistent access
-        const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
-        const targetDocument = targetWindow.document;
+        const window = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+        const targetDocument = window.document;
 
         // Polyfill queueMicrotask for older embeds
         // eslint-disable-next-line no-undef
@@ -7103,7 +7104,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         // Main sync function - sync from game's Jotai atom state
         function syncSlotIndexFromGame() {
-          const atomCache = targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache;
+          const atomCache = window.jotaiAtomCache?.cache || window.jotaiAtomCache;
           if (!atomCache) return null;
 
           const slotAtom = findAtom(atomCache, ['myCurrentGrowSlotIndexAtom']);
@@ -12147,7 +12148,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     }
 
     // Make it available globally so atom hooks can call it
-    targetWindow.refreshAllShopWindows = refreshAllShopWindows;
+    window.refreshAllShopWindows = refreshAllShopWindows;
 
     // Shop sprite image map (Discord CDN URLs)
     const SHOP_IMAGE_MAP = {
@@ -12866,7 +12867,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           });
 
           // Get tools from game shop inventory
-          const toolShop = targetWindow?.globalShop?.shops?.tool;
+          const toolShop = window?.globalShop?.shops?.tool;
           const toolInventory = toolShop?.inventory || [];
           // Only show divider and tools if tools exist
           if (toolInventory.length > 0) {
@@ -12896,7 +12897,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               let isUnlimited = false;
               if (toolId === 'Shovel' || toolId === 'GardenShovel') {
                 // Check player inventory for Shovel ownership
-                const playerInventory = targetWindow.myData?.inventory?.items || [];
+                const playerInventory = window.myData?.inventory?.items || [];
                 isOwned = playerInventory.some(
                   item => item.itemType === 'Tool' && (item.toolId === 'Shovel' || item.toolId === 'GardenShovel')
                 );
@@ -12995,7 +12996,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       // Smart initial render with loading state
       function isShopDataReady() {
-        return !!targetWindow?.globalShop?.shops;
+        return !!window?.globalShop?.shops;
       }
 
       function showLoadingState() {
@@ -13069,7 +13070,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       setInterval(() => {
         // Check if shop has restocked by watching secondsUntilRestock timer pattern
-        const shop = targetWindow?.globalShop?.shops;
+        const shop = window?.globalShop?.shops;
         if (shop) {
           const shopData = type === 'seed' ? shop.seed : shop.egg;
           if (shopData && typeof shopData.secondsUntilRestock !== 'undefined') {
@@ -13307,7 +13308,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     }
 
     function buyItem(id, type, amount, itemEl) {
-      const conn = targetWindow.MagicCircle_RoomConnection;
+      const conn = window.MagicCircle_RoomConnection;
       if (!conn?.sendMessage) {
         alert('Connection not available');
         return;
@@ -13479,7 +13480,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     function getItemStock(id, type) {
       try {
-        const shop = targetWindow?.globalShop?.shops;
+        const shop = window?.globalShop?.shops;
         if (!shop) return 0;
 
         let inventory, item;
@@ -13833,7 +13834,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       function getItemStock(id, type) {
         try {
-          const shop = targetWindow?.globalShop?.shops;
+          const shop = window?.globalShop?.shops;
           if (!shop) return 0;
 
           const inventory = type === 'seed' ? shop.seed?.inventory : shop.egg?.inventory;
@@ -13862,7 +13863,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       }
 
       function buyItem(id, type, amount, itemEl) {
-        const conn = targetWindow.MagicCircle_RoomConnection;
+        const conn = window.MagicCircle_RoomConnection;
         if (!conn?.sendMessage) {
           alert('Connection not available');
           return;
@@ -14241,16 +14242,16 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               UnifiedState.data.settings.autoFavorite.species.push(species);
             }
             // Immediately favorite all existing items of this species
-            if (targetWindow.favoriteSpecies) {
-              targetWindow.favoriteSpecies(species);
+            if (window.favoriteSpecies) {
+              window.favoriteSpecies(species);
             }
           } else {
             UnifiedState.data.settings.autoFavorite.species = UnifiedState.data.settings.autoFavorite.species.filter(
               s => s !== species
             );
             // Immediately unfavorite all existing items of this species
-            if (targetWindow.unfavoriteSpecies) {
-              targetWindow.unfavoriteSpecies(species);
+            if (window.unfavoriteSpecies) {
+              window.unfavoriteSpecies(species);
             }
           }
           saveAutoFavoriteSettings();
@@ -14267,15 +14268,15 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               UnifiedState.data.settings.autoFavorite.mutations.push(mutation);
             }
             // Immediately favorite all existing items with this mutation
-            if (targetWindow.favoriteMutation) {
-              targetWindow.favoriteMutation(mutation);
+            if (window.favoriteMutation) {
+              window.favoriteMutation(mutation);
             }
           } else {
             UnifiedState.data.settings.autoFavorite.mutations =
               UnifiedState.data.settings.autoFavorite.mutations.filter(m => m !== mutation);
             // Immediately unfavorite all existing items with this mutation
-            if (targetWindow.unfavoriteMutation) {
-              targetWindow.unfavoriteMutation(mutation);
+            if (window.unfavoriteMutation) {
+              window.unfavoriteMutation(mutation);
             }
           }
           saveAutoFavoriteSettings();
@@ -14301,8 +14302,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               UnifiedState.data.settings.autoFavorite.petAbilities.push(ability);
             }
             // Immediately favorite all existing pets with this ability
-            if (targetWindow.favoritePetAbility) {
-              targetWindow.favoritePetAbility(ability);
+            if (window.favoritePetAbility) {
+              window.favoritePetAbility(ability);
             }
           } else {
             productionLog(
@@ -14312,8 +14313,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             UnifiedState.data.settings.autoFavorite.petAbilities =
               UnifiedState.data.settings.autoFavorite.petAbilities.filter(a => a !== ability);
             // Never unfavorite - only disable future auto-favoriting
-            if (targetWindow.unfavoritePetAbility) {
-              targetWindow.unfavoritePetAbility(ability);
+            if (window.unfavoritePetAbility) {
+              window.unfavoritePetAbility(ability);
             }
           }
           saveAutoFavoriteSettings();
@@ -14436,9 +14437,6 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                   </div>
               `;
       };
-
-      // Get MG & Custom rooms
-      const mgAndCustomRooms = RoomRegistry.getMGAndCustomRooms();
 
       return `
               <div class="mga-section">
@@ -15517,11 +15515,11 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         lastRestockCheck = now;
 
         // Get timer data - use both sources for reliability
-        const quinoaData = UnifiedState.atoms.quinoaData || targetWindow?.globalShop;
-        if (!quinoaData && !targetWindow?.globalShop) return; // No shop data available
+        const quinoaData = UnifiedState.atoms.quinoaData || window?.globalShop;
+        if (!quinoaData && !window?.globalShop) return; // No shop data available
 
-        // Use targetWindow.globalShop as primary source, quinoaData as fallback
-        const shopData = targetWindow?.globalShop || UnifiedState.atoms.quinoaData || quinoaData;
+        // Use window.globalShop as primary source, quinoaData as fallback
+        const shopData = window?.globalShop || UnifiedState.atoms.quinoaData || quinoaData;
         const seedTimer = shopData?.shops?.seed?.secondsUntilRestock || 999;
         const eggTimer = shopData?.shops?.egg?.secondsUntilRestock || 999;
         const decorTimer = shopData?.shops?.decor?.secondsUntilRestock || 999;
@@ -15573,7 +15571,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         lastDecorTimer = decorTimer;
 
         // Check seed shop
-        const currentSeeds = targetWindow?.globalShop?.shops?.seed?.inventory || [];
+        const currentSeeds = window?.globalShop?.shops?.seed?.inventory || [];
         const inStockSeeds = currentSeeds.filter(item => item.initialStock > 0);
         const currentSeedIds = inStockSeeds.map(item => item.species);
 
@@ -15700,7 +15698,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         try {
           productionLog(`🥚 [NOTIFICATIONS] === CHECKING EGG SHOP ===`);
-          const currentEggs = targetWindow?.globalShop?.shops?.egg?.inventory || [];
+          const currentEggs = window?.globalShop?.shops?.egg?.inventory || [];
           const inStockEggs = currentEggs.filter(item => item.initialStock > 0);
           currentEggIds = inStockEggs.map(item => item.eggId);
 
@@ -15716,11 +15714,11 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           // Debug egg shop structure
           if (currentEggs.length === 0) {
             productionLog(`🥚 [NOTIFICATIONS] No eggs found. Shop structure:`, {
-              hasGlobalShop: !!targetWindow?.globalShop,
-              hasShops: !!targetWindow?.globalShop?.shops,
-              hasEggShop: !!targetWindow?.globalShop?.shops?.egg,
-              hasEggInventory: !!targetWindow?.globalShop?.shops?.egg?.inventory,
-              eggInventoryLength: targetWindow?.globalShop?.shops?.egg?.inventory?.length || 0
+              hasGlobalShop: !!window?.globalShop,
+              hasShops: !!window?.globalShop?.shops,
+              hasEggShop: !!window?.globalShop?.shops?.egg,
+              hasEggInventory: !!window?.globalShop?.shops?.egg?.inventory,
+              eggInventoryLength: window?.globalShop?.shops?.egg?.inventory?.length || 0
             });
           }
 
@@ -15855,7 +15853,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           }
 
           productionLog(`🎨 [NOTIFICATIONS] === CHECKING DECOR SHOP ===`);
-          const currentDecor = targetWindow?.globalShop?.shops?.decor?.inventory || [];
+          const currentDecor = window?.globalShop?.shops?.decor?.inventory || [];
           const inStockDecor = currentDecor.filter(item => item.initialStock > 0);
           currentDecorIds = inStockDecor.map(item => item.decorId);
 
@@ -15871,11 +15869,11 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           // Debug decor shop structure
           if (currentDecor.length === 0) {
             productionLog(`🎨 [NOTIFICATIONS] No decor found. Shop structure:`, {
-              hasGlobalShop: !!targetWindow?.globalShop,
-              hasShops: !!targetWindow?.globalShop?.shops,
-              hasDecorShop: !!targetWindow?.globalShop?.shops?.decor,
-              hasDecorInventory: !!targetWindow?.globalShop?.shops?.decor?.inventory,
-              decorInventoryLength: targetWindow?.globalShop?.shops?.decor?.inventory?.length || 0
+              hasGlobalShop: !!window?.globalShop,
+              hasShops: !!window?.globalShop?.shops,
+              hasDecorShop: !!window?.globalShop?.shops?.decor,
+              hasDecorInventory: !!window?.globalShop?.shops?.decor?.inventory,
+              decorInventoryLength: window?.globalShop?.shops?.decor?.inventory?.length || 0
             });
           }
 
@@ -16084,7 +16082,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     setManagedInterval(
       'toolRestockWatch',
       () => {
-        const toolShop = targetWindow?.globalShop?.shops?.tool;
+        const toolShop = window?.globalShop?.shops?.tool;
         if (!toolShop || !toolShop.secondsUntilRestock) return;
 
         const curr = toolShop.secondsUntilRestock;
@@ -16111,7 +16109,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       // Try to find and watch globalShop
       function watchShopData() {
-        if (!targetWindow.globalShop) {
+        if (!window.globalShop) {
           productionWarn('⚠️ [SHOP-WATCHER] globalShop not found, will retry...');
           setTimeout(watchShopData, 5000);
           return;
@@ -16120,9 +16118,9 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         productionLog('✅ [SHOP-WATCHER] Found globalShop, setting up watchers...');
 
         // Store original shop data
-        const lastSeedData = JSON.stringify(targetWindow.globalShop?.shops?.seed || {});
-        const lastEggData = JSON.stringify(targetWindow.globalShop?.shops?.egg || {});
-        const lastDecorData = JSON.stringify(targetWindow.globalShop?.shops?.decor || {});
+        const lastSeedData = JSON.stringify(window.globalShop?.shops?.seed || {});
+        const lastEggData = JSON.stringify(window.globalShop?.shops?.egg || {});
+        const lastDecorData = JSON.stringify(window.globalShop?.shops?.decor || {});
 
         // Use lightweight restock detection instead of heavy JSON.stringify
         let lastSeedRestock = 0;
@@ -16131,9 +16129,9 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         setInterval(() => {
           try {
-            if (!targetWindow.globalShop || !targetWindow.globalShop.shops) return;
+            if (!window.globalShop || !window.globalShop.shops) return;
 
-            const shops = targetWindow.globalShop.shops;
+            const shops = window.globalShop.shops;
 
             // Lightweight check: only compare secondsUntilRestock (resets to high number on restock)
             if (shops.seed) {
@@ -16186,9 +16184,9 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         productionLog('✅ [SHOP-WATCHER] Using lightweight restock detection (5s interval)');
 
         // Also watch for complete globalShop replacement
-        const globalShopDescriptor = Object.getOwnPropertyDescriptor(targetWindow, 'globalShop');
+        const globalShopDescriptor = Object.getOwnPropertyDescriptor(window, 'globalShop');
         if (!globalShopDescriptor || globalShopDescriptor.configurable !== false) {
-          Object.defineProperty(targetWindow, 'globalShop', {
+          Object.defineProperty(window, 'globalShop', {
             get() {
               return this._globalShop;
             },
@@ -16207,7 +16205,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           });
 
           // Set initial value
-          targetWindow._globalShop = targetWindow.globalShop;
+          window._globalShop = window.globalShop;
           productionLog('✅ [SHOP-WATCHER] globalShop setter installed');
         }
 
@@ -16567,7 +16565,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       try {
         // Check game state for weather (adjust based on actual game structure)
-        const roomState = targetWindow?.MagicCircle_RoomConnection?.lastRoomStateJsonable;
+        const roomState = window?.MagicCircle_RoomConnection?.lastRoomStateJsonable;
         const currentWeather = roomState?.child?.data?.weather || roomState?.weather || null;
 
         if (currentWeather && currentWeather !== lastWeatherState) {
@@ -19291,15 +19289,15 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             logWarn('ABILITY-LOGS', '  ⚠️ Could not clear window.localStorage:', e.message);
           }
 
-          // 4. Clear targetWindow.localStorage (if different from window)
+          // 4. Clear window.localStorage (if different from window)
           try {
-            if (typeof targetWindow !== 'undefined' && targetWindow && targetWindow !== window) {
-              targetWindow.localStorage?.removeItem('MGA_petAbilityLogs');
-              targetWindow.localStorage?.removeItem('MGA_petAbilityLogs_archive');
-              logDebug('ABILITY-LOGS', '  ✓ Cleared targetWindow.localStorage');
+            if (typeof window !== 'undefined' && window && window !== window) {
+              window.localStorage?.removeItem('MGA_petAbilityLogs');
+              window.localStorage?.removeItem('MGA_petAbilityLogs_archive');
+              logDebug('ABILITY-LOGS', '  ✓ Cleared window.localStorage');
             }
           } catch (e) {
-            logWarn('ABILITY-LOGS', '  ⚠️ Could not clear targetWindow.localStorage:', e.message);
+            logWarn('ABILITY-LOGS', '  ⚠️ Could not clear window.localStorage:', e.message);
           }
 
           // 5. Clear compatibility array
@@ -21501,7 +21499,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     // ==================== HARVEST & SELL PROTECTION ====================
     function applyHarvestRule() {
-      targetWindow.currentHarvestRule = ({ species, mutations } = {}) => {
+      window.currentHarvestRule = ({ species, mutations } = {}) => {
         // CRITICAL FIX: Read fresh locked crops from UnifiedState each time harvest is attempted
         // This ensures unlocking crops takes effect immediately without requiring page refresh
         const freshLockedCrops = UnifiedState.data.lockedCrops || { species: [], mutations: [] };
@@ -21548,8 +21546,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     }
 
     function applySellBlockThreshold() {
-      targetWindow.sellBlockThreshold = UnifiedState.data.sellBlockThreshold || 1.0;
-      console.log(`✅ Sell block threshold set to ${targetWindow.sellBlockThreshold}x`);
+      window.sellBlockThreshold = UnifiedState.data.sellBlockThreshold || 1.0;
+      console.log(`✅ Sell block threshold set to ${window.sellBlockThreshold}x`);
     }
 
     // Track RoomConnection retry attempts
@@ -21558,39 +21556,30 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     function initializeProtectionHooks() {
       // Note: friendBonus and myGarden atoms are already hooked in initializeAtoms()
-      // which sets both UnifiedState.atoms and targetWindow values
+      // which sets both UnifiedState.atoms and window values
 
       // Hook sendMessage to intercept harvest and sell commands
       setTimeout(() => {
-        if (!targetWindow.MagicCircle_RoomConnection) {
-          if (roomConnectionRetries < MAX_ROOM_CONNECTION_RETRIES) {
-            roomConnectionRetries++;
-            console.warn(`⏳ Waiting for RoomConnection (${roomConnectionRetries}/${MAX_ROOM_CONNECTION_RETRIES})...`);
-            setTimeout(initializeProtectionHooks, 1000);
-            return;
-          } else {
-            console.warn('⚠️ RoomConnection not found after max retries - continuing without protection hooks');
-            // Continue without it - non-critical feature
-            return;
-          }
+        if (!window.MagicCircle_RoomConnection) {
+          console.warn('⚠️ RoomConnection not found, automatically uusing no protection becauuse it no workie for some reason - continuing without protection hooks');
         }
 
         // Reset counter on success
         roomConnectionRetries = 0;
         console.log('✅ MagicCircle_RoomConnection found - initializing protection hooks');
 
-        const originalSendMessage = targetWindow.MagicCircle_RoomConnection.sendMessage.bind(
-          targetWindow.MagicCircle_RoomConnection
+        const originalSendMessage = window.MagicCircle_RoomConnection.sendMessage.bind(
+          window.MagicCircle_RoomConnection
         );
 
         // Wrap sendMessage to intercept messages for protection and tracking
-        targetWindow.MagicCircle_RoomConnection.sendMessage = function (message, ...rest) {
+        window.MagicCircle_RoomConnection.sendMessage = function (message, ...rest) {
           try {
             if (!message || typeof message.type !== 'string') {
               return originalSendMessage(message, ...rest);
             }
 
-            const friendBonus = targetWindow.friendBonus ?? 1.5;
+            const friendBonus = window.friendBonus ?? 1.5;
             const msgType = message.type;
             const isSellMessage = msgType === 'SellAllCrops'; // Only check crops - friend bonus doesn't work for pets
 
@@ -21622,16 +21611,16 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             }
 
             // Check sell blocking
-            if (isSellMessage && friendBonus < targetWindow.sellBlockThreshold) {
+            if (isSellMessage && friendBonus < window.sellBlockThreshold) {
               console.warn(
-                `[SellBlock] Blocked ${msgType} (friendBonus=${friendBonus} < ${targetWindow.sellBlockThreshold})`
+                `[SellBlock] Blocked ${msgType} (friendBonus=${friendBonus} < ${window.sellBlockThreshold})`
               );
               return;
             }
 
             // Check harvest blocking
             if (msgType === 'HarvestCrop') {
-              const tile = targetWindow.myGarden?.garden?.tileObjects?.[message.slot];
+              const tile = window.myGarden?.garden?.tileObjects?.[message.slot];
               const slotData = tile?.slots?.[message.slotsIndex];
 
               console.log(`[HarvestCheck] Attempting harvest: slot=${message.slot}, index=${message.slotsIndex}`);
@@ -21643,11 +21632,11 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                 const slotMutations = slotData.mutations || [];
 
                 console.log(`[HarvestCheck] Species: ${species}, Mutations:`, slotMutations);
-                console.log(`[HarvestCheck] currentHarvestRule exists:`, !!targetWindow.currentHarvestRule);
+                console.log(`[HarvestCheck] currentHarvestRule exists:`, !!window.currentHarvestRule);
 
                 if (
-                  targetWindow.currentHarvestRule &&
-                  !targetWindow.currentHarvestRule({ species, mutations: slotMutations })
+                  window.currentHarvestRule &&
+                  !window.currentHarvestRule({ species, mutations: slotMutations })
                 ) {
                   console.log(`🔒 BLOCKED HarvestCrop: ${species} with mutations [${slotMutations.join(', ')}]`);
                   return;
@@ -21817,8 +21806,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                 // Look up what decor is at this tile position
                 let decorAtPosition = null;
 
-                if (targetWindow.myGarden?.garden) {
-                  const garden = targetWindow.myGarden.garden;
+                if (window.myGarden?.garden) {
+                  const garden = window.myGarden.garden;
 
                   // Check the appropriate tile collection based on tileType
                   if (tileType === 'Boardwalk' && garden.boardwalkTileObjects) {
@@ -21851,7 +21840,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
             // Backup scopePath capture for Feed buttons
             if (Array.isArray(message?.scopePath)) {
-              targetWindow.__mga_lastScopePath = message.scopePath.slice();
+              window.__mga_lastScopePath = message.scopePath.slice();
             }
 
             // Debug hook to see ALL FeedPet messages (native and ours)
@@ -23157,7 +23146,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     // Tile-modifying hookAtom function (different from monitoring hookAtom)
     function hookAtomForTileOverrides(atomPath, windowKey) {
-      const atom = targetWindow.jotaiAtomCache?.get(atomPath);
+      const atom = window.jotaiAtomCache?.get(atomPath);
       if (!atom?.read) {
         productionWarn(`🔍 Could not find atom at path: ${atomPath}`);
         return;
@@ -23380,7 +23369,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
     // Initialize crop highlighting atoms hooks when utilities are loaded
     function initializeCropHighlightingAtoms() {
-      if (!targetWindow.jotaiAtomCache) {
+      if (!window.jotaiAtomCache) {
         // Wait for jotaiAtomCache to be available
         setTimeout(initializeCropHighlightingAtoms, 1000);
         return;
@@ -23432,7 +23421,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       productionLog('🔍 CROP HIGHLIGHTING DEBUG:');
       productionLog('  window.gardenInfo:', !!window.gardenInfo);
       productionLog('  window.currentCrop:', !!window.currentCrop);
-      productionLog('  targetWindow.jotaiAtomCache:', !!targetWindow.jotaiAtomCache);
+      productionLog('  window.jotaiAtomCache:', !!window.jotaiAtomCache);
 
       if (window.gardenInfo?.garden?.tileObjects) {
         const tileObjects = window.gardenInfo.garden.tileObjects;
@@ -23729,7 +23718,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         // Method 4: Force re-hook atoms
         setTimeout(() => {
           productionLog('🔄 Re-hooking atoms...');
-          if (targetWindow.jotaiAtomCache) {
+          if (window.jotaiAtomCache) {
             hookAtomForTileOverrides(
               '/home/runner/work/magiccircle.gg/magiccircle.gg/client/src/games/Quinoa/atoms/baseAtoms.ts/myUserSlotAtom',
               'gardenInfo'
@@ -26550,15 +26539,15 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       productionLog('🐾 window.activePets:', window.activePets);
 
       // Try to access game's pet data directly
-      if (targetWindow.MagicCircle_RoomConnection) {
-        const roomState = targetWindow.MagicCircle_RoomConnection.lastRoomStateJsonable;
+      if (window.MagicCircle_RoomConnection) {
+        const roomState = window.MagicCircle_RoomConnection.lastRoomStateJsonable;
         productionLog('🎮 Room state pets:', roomState?.child?.data?.petSlots);
         productionLog('🎮 User slots:', roomState?.child?.data?.userSlots);
       }
 
       // Check jotai atoms
-      if (targetWindow.jotaiAtomCache) {
-        const allAtoms = Array.from(targetWindow.jotaiAtomCache.keys());
+      if (window.jotaiAtomCache) {
+        const allAtoms = Array.from(window.jotaiAtomCache.keys());
         const petAtoms = allAtoms.filter(
           key =>
             key.toLowerCase().includes('pet') ||
@@ -26576,8 +26565,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       productionLog('🔧 [MANUAL] Force updating Active Pets display...');
 
       // Try to get pets from room state as fallback
-      if (targetWindow.MagicCircle_RoomConnection) {
-        const roomState = targetWindow.MagicCircle_RoomConnection.lastRoomStateJsonable;
+      if (window.MagicCircle_RoomConnection) {
+        const roomState = window.MagicCircle_RoomConnection.lastRoomStateJsonable;
         const petSlots = roomState?.child?.data?.petSlots;
 
         if (petSlots && Array.isArray(petSlots)) {
@@ -26795,7 +26784,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         'friendBonus',
         value => {
           UnifiedState.atoms.friendBonus = value || 1;
-          targetWindow.friendBonus = value; // Also needed for harvest/sell protection
+          window.friendBonus = value; // Also needed for harvest/sell protection
           updateValues();
         }
       );
@@ -26805,8 +26794,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         '/home/runner/work/magiccircle.gg/magiccircle.gg/client/src/games/Quinoa/atoms/baseAtoms.ts/myUserSlotAtom',
         'myGarden',
         value => {
-          targetWindow.myGarden = value?.data || value; // Extract .data property (has garden, inventory, petSlots)
-          targetWindow.myData = value?.data || value; // Extract .data property for feed buttons & auto-favorite
+          window.myGarden = value?.data || value; // Extract .data property (has garden, inventory, petSlots)
+          window.myData = value?.data || value; // Extract .data property for feed buttons & auto-favorite
           updateValues();
         }
       );
@@ -26819,7 +26808,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           // Store quinoa data for timers
           UnifiedState.atoms.quinoaData = value;
           // Also make globalShop available for notifications
-          targetWindow.globalShop = value;
+          window.globalShop = value;
           // Update timers
           updateTimers();
         }
@@ -26831,8 +26820,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         'shops',
         value => {
           // value contains all 4 shops: { seed: {...}, egg: {...}, tool: {...}, decor: {...} }
-          if (!targetWindow.globalShop) targetWindow.globalShop = {};
-          targetWindow.globalShop.shops = value;
+          if (!window.globalShop) window.globalShop = {};
+          window.globalShop.shops = value;
 
           // CRITICAL: Also update quinoaData.shops for timers
           if (!UnifiedState.atoms.quinoaData) UnifiedState.atoms.quinoaData = {};
@@ -26842,8 +26831,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           updateTimers();
 
           // Trigger shop UI refresh if open
-          if (typeof targetWindow.refreshAllShopWindows === 'function') {
-            targetWindow.refreshAllShopWindows();
+          if (typeof window.refreshAllShopWindows === 'function') {
+            window.refreshAllShopWindows();
           }
         }
       );
@@ -26902,14 +26891,14 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           return;
         }
 
-        if (!targetWindow.myData?.inventory?.items) {
+        if (!window.myData?.inventory?.items) {
           return;
         }
 
-        const currentCount = targetWindow.myData.inventory.items.length;
+        const currentCount = window.myData.inventory.items.length;
         // Only process if inventory count increased (new items added)
         if (currentCount > lastInventoryCount) {
-          checkAndFavoriteNewItems(targetWindow.myData.inventory);
+          checkAndFavoriteNewItems(window.myData.inventory);
         }
         lastInventoryCount = currentCount;
       }, 2000); // OPTIMIZED: Every 2 seconds (was 500ms)
@@ -26962,8 +26951,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               (targetPetAbilities.has('Rainbow Granter') && (hasRainbowMutation || hasRainbowGranterAbility));
 
             if (shouldFavorite) {
-              if (targetWindow.MagicCircle_RoomConnection?.sendMessage) {
-                targetWindow.MagicCircle_RoomConnection.sendMessage({
+              if (window.MagicCircle_RoomConnection?.sendMessage) {
+                window.MagicCircle_RoomConnection.sendMessage({
                   scopePath: ['Room', 'Quinoa'],
                   type: 'ToggleFavoriteItem',
                   itemId: item.id
@@ -26991,8 +26980,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
           if (matchesSpecies || matchesMutation) {
             // Send favorite command
-            if (targetWindow.MagicCircle_RoomConnection?.sendMessage) {
-              targetWindow.MagicCircle_RoomConnection.sendMessage({
+            if (window.MagicCircle_RoomConnection?.sendMessage) {
+              window.MagicCircle_RoomConnection.sendMessage({
                 scopePath: ['Room', 'Quinoa'],
                 type: 'ToggleFavoriteItem',
                 itemId: item.id
@@ -27011,14 +27000,14 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       }
 
       // Function to favorite ALL items of a species (called when checkbox is checked)
-      targetWindow.favoriteSpecies = function (speciesName) {
-        if (!targetWindow.myData?.inventory?.items) {
+      window.favoriteSpecies = function (speciesName) {
+        if (!window.myData?.inventory?.items) {
           productionLog('🌟 [AUTO-FAVORITE] No myData available yet - waiting for game to load');
           return;
         }
 
-        const items = targetWindow.myData.inventory.items;
-        const favoritedIds = new Set(targetWindow.myData.inventory.favoritedItemIds || []);
+        const items = window.myData.inventory.items;
+        const favoritedIds = new Set(window.myData.inventory.favoritedItemIds || []);
         let count = 0;
 
         for (const item of items) {
@@ -27029,8 +27018,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           if (item.species && (item.species.includes('Pet') || item.species.includes('Egg'))) continue;
 
           if (item.species === speciesName && !favoritedIds.has(item.id)) {
-            if (targetWindow.MagicCircle_RoomConnection?.sendMessage) {
-              targetWindow.MagicCircle_RoomConnection.sendMessage({
+            if (window.MagicCircle_RoomConnection?.sendMessage) {
+              window.MagicCircle_RoomConnection.sendMessage({
                 scopePath: ['Room', 'Quinoa'],
                 type: 'ToggleFavoriteItem',
                 itemId: item.id
@@ -27050,7 +27039,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       };
 
       // DISABLED: Script never unfavorites - only adds favorites
-      targetWindow.unfavoriteSpecies = function (speciesName) {
+      window.unfavoriteSpecies = function (speciesName) {
         productionLog(
           `🔒 [AUTO-FAVORITE] Checkbox unchecked for ${speciesName} - Auto-favorite disabled, but existing favorites are preserved (script never removes favorites)`
         );
@@ -27059,14 +27048,14 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       };
 
       // Function to favorite ALL items with a specific mutation (called when mutation checkbox is checked)
-      targetWindow.favoriteMutation = function (mutationName) {
-        if (!targetWindow.myData?.inventory?.items) {
+      window.favoriteMutation = function (mutationName) {
+        if (!window.myData?.inventory?.items) {
           productionLog('🌟 [AUTO-FAVORITE] No myData available yet - waiting for game to load');
           return;
         }
 
-        const items = targetWindow.myData.inventory.items;
-        const favoritedIds = new Set(targetWindow.myData.inventory.favoritedItemIds || []);
+        const items = window.myData.inventory.items;
+        const favoritedIds = new Set(window.myData.inventory.favoritedItemIds || []);
         let count = 0;
 
         for (const item of items) {
@@ -27078,8 +27067,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
           const itemMutations = item.mutations || [];
           if (itemMutations.includes(mutationName) && !favoritedIds.has(item.id)) {
-            if (targetWindow.MagicCircle_RoomConnection?.sendMessage) {
-              targetWindow.MagicCircle_RoomConnection.sendMessage({
+            if (window.MagicCircle_RoomConnection?.sendMessage) {
+              window.MagicCircle_RoomConnection.sendMessage({
                 scopePath: ['Room', 'Quinoa'],
                 type: 'ToggleFavoriteItem',
                 itemId: item.id
@@ -27099,7 +27088,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       };
 
       // DISABLED: Script never unfavorites - only adds favorites
-      targetWindow.unfavoriteMutation = function (mutationName) {
+      window.unfavoriteMutation = function (mutationName) {
         productionLog(
           `🔒 [AUTO-FAVORITE] Checkbox unchecked for ${mutationName} mutation - Auto-favorite disabled, but existing favorites are preserved (script never removes favorites)`
         );
@@ -27108,16 +27097,16 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       };
 
       // Favorite ALL pets with a specific ability (called when checkbox is checked)
-      targetWindow.favoritePetAbility = function (abilityName) {
-        if (!targetWindow.myData?.inventory?.items) {
+      window.favoritePetAbility = function (abilityName) {
+        if (!window.myData?.inventory?.items) {
           productionLog('🌟 [AUTO-FAVORITE-PET] No myData available yet - waiting for game to load');
           return;
         }
 
         productionLog(`🔍 [AUTO-FAVORITE-PET] Searching for pets with ${abilityName}...`);
 
-        const items = targetWindow.myData.inventory.items;
-        const favoritedIds = new Set(targetWindow.myData.inventory.favoritedItemIds || []);
+        const items = window.myData.inventory.items;
+        const favoritedIds = new Set(window.myData.inventory.favoritedItemIds || []);
         let count = 0;
         let petsChecked = 0;
 
@@ -27164,8 +27153,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               `✨ [AUTO-FAVORITE-PET] Found matching pet: ${item.petSpecies} (${item.id}) - mutations: [${petMutations.join(', ')}], abilities: ${petAbilities.length}`
             );
 
-            if (targetWindow.MagicCircle_RoomConnection?.sendMessage) {
-              targetWindow.MagicCircle_RoomConnection.sendMessage({
+            if (window.MagicCircle_RoomConnection?.sendMessage) {
+              window.MagicCircle_RoomConnection.sendMessage({
                 scopePath: ['Room', 'Quinoa'],
                 type: 'ToggleFavoriteItem',
                 itemId: item.id
@@ -27179,7 +27168,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       };
 
       // DISABLED: Script never unfavorites - only adds favorites
-      targetWindow.unfavoritePetAbility = function (abilityName) {
+      window.unfavoritePetAbility = function (abilityName) {
         productionLog(
           `🔒 [AUTO-FAVORITE-PET] Checkbox unchecked for ${abilityName} - Auto-favorite disabled, but existing favorites are preserved (script never removes favorites)`
         );
@@ -27398,8 +27387,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       const MARKER_TURTLE = 'tm-turtle-timer';
 
       // Get current crop/egg data from atoms
-      let currentCrop = targetWindow.currentCrop || UnifiedState.atoms.currentCrop;
-      const currentEgg = targetWindow.currentEgg || UnifiedState.atoms.currentEgg;
+      let currentCrop = window.currentCrop || UnifiedState.atoms.currentCrop;
+      const currentEgg = window.currentEgg || UnifiedState.atoms.currentEgg;
 
       if (!currentCrop && !currentEgg) {
         return; // No data available
@@ -27425,7 +27414,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
           if (isEgg) {
             // Handle egg timer
-            const activePets = targetWindow.activePets || UnifiedState.atoms.activePets;
+            const activePets = window.activePets || UnifiedState.atoms.activePets;
             const eggExpectations = getEggExpectations(activePets);
 
             if (eggExpectations && eggExpectations.expectedMinutesRemoved > 0) {
@@ -27473,7 +27462,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           );
 
           if (timeElement) {
-            const activePets = targetWindow.activePets || UnifiedState.atoms.activePets;
+            const activePets = window.activePets || UnifiedState.atoms.activePets;
             const slotIndex = getCurrentSlotIndex(currentCrop);
             const sortedIndices = UnifiedState.atoms.sortedSlotIndices || window.sortedSlotIndices;
             let actualSlotIndex = slotIndex;
@@ -27677,7 +27666,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
           // Store the extracted crop data
           UnifiedState.atoms.currentCrop = cropData;
-          targetWindow.currentCrop = cropData;
+          window.currentCrop = cropData;
 
           const currentHash = getCropHash(cropData || value);
 
@@ -27699,22 +27688,22 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       // Also poll while player is on a tile to catch any missed updates
       setInterval(() => {
-        let currentCrop = targetWindow.currentCrop || UnifiedState.atoms.currentCrop;
-        const currentEgg = targetWindow.currentEgg || UnifiedState.atoms.currentEgg;
+        let currentCrop = window.currentCrop || UnifiedState.atoms.currentCrop;
+        const currentEgg = window.currentEgg || UnifiedState.atoms.currentEgg;
 
         // Try to find crop data manually - DIRECT ATOM READING
         let manualCrop = null;
         if (!currentCrop) {
           // Step 1: Find Jotai store if not already found
-          if (!targetWindow.__foundJotaiStore) {
+          if (!window.__foundJotaiStore) {
             const possibleStores = [
-              targetWindow.jotaiStore,
-              targetWindow.__JOTAI_STORE__,
-              targetWindow.store,
-              targetWindow.getDefaultStore?.(),
-              targetWindow.globalStore,
-              targetWindow.__jotaiStore,
-              targetWindow._jotaiStore
+              window.jotaiStore,
+              window.__JOTAI_STORE__,
+              window.store,
+              window.getDefaultStore?.(),
+              window.globalStore,
+              window.__jotaiStore,
+              window._jotaiStore
             ];
 
             for (const store of possibleStores) {
@@ -27723,52 +27712,52 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               if (
                 store &&
                 typeof store.get === 'function' &&
-                store !== targetWindow.cookieStore &&
+                store !== window.cookieStore &&
                 store !== window.cookieStore &&
                 (typeof store.set === 'function' || typeof store.sub === 'function')
               ) {
-                targetWindow.__foundJotaiStore = store;
+                window.__foundJotaiStore = store;
                 break;
               }
             }
 
             // If still not found, explore window properties
-            if (!targetWindow.__foundJotaiStore) {
-              const storeKeys = Object.keys(targetWindow).filter(
+            if (!window.__foundJotaiStore) {
+              const storeKeys = Object.keys(window).filter(
                 k => k.toLowerCase().includes('store') || k.toLowerCase().includes('jotai')
               );
 
               for (const key of storeKeys) {
-                const val = targetWindow[key];
+                const val = window[key];
                 if (
                   val &&
                   typeof val === 'object' &&
                   typeof val.get === 'function' &&
-                  val !== targetWindow.cookieStore &&
+                  val !== window.cookieStore &&
                   val !== window.cookieStore &&
                   (typeof val.set === 'function' || typeof val.sub === 'function')
                 ) {
-                  targetWindow.__foundJotaiStore = val;
+                  window.__foundJotaiStore = val;
                   break;
                 }
               }
 
               // ENHANCED: Explore jotaiAtomCache itself for store reference
-              if (!targetWindow.__foundJotaiStore && targetWindow.jotaiAtomCache) {
-                const cache = targetWindow.jotaiAtomCache;
+              if (!window.__foundJotaiStore && window.jotaiAtomCache) {
+                const cache = window.jotaiAtomCache;
 
                 // Check if cache has store property
                 if (cache.store) {
-                  targetWindow.__foundJotaiStore = cache.store;
+                  window.__foundJotaiStore = cache.store;
                 } else if (cache.cache && cache.cache.store) {
-                  targetWindow.__foundJotaiStore = cache.cache.store;
+                  window.__foundJotaiStore = cache.cache.store;
                 }
               }
             }
           }
 
           // Step 2: Try to read atom using the store
-          const atomCache = targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache;
+          const atomCache = window.jotaiAtomCache?.cache || window.jotaiAtomCache;
           if (atomCache && atomCache.get) {
             const cropAtom = atomCache.get(
               '/home/runner/work/magiccircle.gg/magiccircle.gg/client/src/games/Quinoa/atoms/myAtoms.ts/myCurrentGrowSlotsAtom'
@@ -27776,15 +27765,15 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
             if (cropAtom) {
               // Try to read using found store
-              if (targetWindow.__foundJotaiStore) {
+              if (window.__foundJotaiStore) {
                 try {
-                  const cropValue = targetWindow.__foundJotaiStore.get(cropAtom);
+                  const cropValue = window.__foundJotaiStore.get(cropAtom);
 
                   // Handle if it's a Promise
                   if (cropValue && typeof cropValue.then === 'function') {
                     cropValue
                       .then(val => {
-                        targetWindow.currentCrop = val;
+                        window.currentCrop = val;
                         UnifiedState.atoms.currentCrop = val;
 
                         // Trigger update
@@ -27799,7 +27788,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                     manualCrop = cropValue;
 
                     // Store it for next time
-                    targetWindow.currentCrop = cropValue;
+                    window.currentCrop = cropValue;
                     UnifiedState.atoms.currentCrop = cropValue;
                   }
                 } catch (e) {
@@ -27922,10 +27911,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       // Attach to multiple contexts
       try {
         window.debugCropDetection = debugCropDetectionFunc;
-        targetWindow.debugCropDetection = debugCropDetectionFunc;
+        window.debugCropDetection = debugCropDetectionFunc;
 
         console.log('💡 TIP: Run window.debugCropDetection() in console to debug crop detection');
-        console.log('💡 Available in: window, targetWindow');
+        console.log('💡 Available in: window, window');
       } catch (e) {
         console.log('⚠️ Could not attach debugCropDetection:', e);
       }
@@ -27937,10 +27926,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         window.importPetPresets = importPetPresets;
         window.performStorageHealthCheck = performStorageHealthCheck;
 
-        targetWindow.emergencyStorageScan = emergencyStorageScan;
-        targetWindow.exportPetPresets = exportPetPresets;
-        targetWindow.importPetPresets = importPetPresets;
-        targetWindow.performStorageHealthCheck = performStorageHealthCheck;
+        window.emergencyStorageScan = emergencyStorageScan;
+        window.exportPetPresets = exportPetPresets;
+        window.importPetPresets = importPetPresets;
+        window.performStorageHealthCheck = performStorageHealthCheck;
 
         console.log('💡 TIP: Storage recovery functions available:');
         console.log('   - emergencyStorageScan("MGA_petPresets") - Scan for lost data');
@@ -28158,8 +28147,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         const gmRaw = typeof GM_getValue !== 'undefined' ? GM_getValue('MGA_petAbilityLogs', null) : null;
         const lsRaw = window.localStorage?.getItem('MGA_petAbilityLogs');
         const tgRaw =
-          typeof targetWindow !== 'undefined' && targetWindow && targetWindow !== window
-            ? targetWindow.localStorage?.getItem('MGA_petAbilityLogs')
+          typeof window !== 'undefined' && window && window !== window
+            ? window.localStorage?.getItem('MGA_petAbilityLogs')
             : null;
 
         // Count logs in each source
@@ -28186,7 +28175,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               ? 'GM'
               : lsCount >= tgCount
                 ? 'window.localStorage'
-                : 'targetWindow.localStorage'
+                : 'window.localStorage'
         });
 
         const loadedLogs = MGA_loadJSON('MGA_petAbilityLogs', []);
@@ -28513,32 +28502,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         }
       }
 
-      // Load customRooms from saved data
-      if (
-        loadedData &&
-        loadedData.customRooms &&
-        Array.isArray(loadedData.customRooms) &&
-        loadedData.customRooms.length > 0
-      ) {
-        // Load from saved data
-        UnifiedState.data.customRooms = loadedData.customRooms;
-        productionLog('🏠 [ROOMS] Loaded custom rooms from storage:', UnifiedState.data.customRooms);
-      } else {
-        // Initialize with defaults (first time only)
-        UnifiedState.data.customRooms = [...DEFAULT_ROOMS];
 
-        // Add Discord play rooms if in Discord environment
-        if (isDiscordEnvironment()) {
-          UnifiedState.data.customRooms.push(...DISCORD_PLAY_ROOMS);
-          productionLog('🎮 [ROOMS] Discord environment detected - added Discord play rooms');
-        }
-
-        // Custom rooms will be saved at the end of loadSavedData (line ~23444)
-        productionLog(
-          '🏠 [ROOMS] Initialized custom rooms (first time - will save at end of init):',
-          UnifiedState.data.customRooms
-        );
-      }
 
       // Load room status from storage (player counts for custom rooms)
       const savedRoomStatus = MGA_loadJSON('MGA_roomStatus', null);
@@ -29611,10 +29575,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         // 1) Prefer built-in PlayerService if available (clean)
         try {
-          const PS = targetWindow.PlayerService || (targetWindow.Quinoa && targetWindow.Quinoa.PlayerService) || null;
+          const PS = window.PlayerService || (window.Quinoa && window.Quinoa.PlayerService) || null;
           if (PS && typeof PS.setPosition === 'function') {
             await PS.setPosition(x, y);
-            targetWindow.MagicCircle_RoomConnection.sendMessage({
+            window.MagicCircle_RoomConnection.sendMessage({
               scopePath: ['Room', 'Quinoa'],
               type: 'PlayerPosition',
               position: {
@@ -29633,7 +29597,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         // 2) Fallback: use jotai atom cache capture technique (captures store.set)
         try {
-          const cache = targetWindow.jotaiAtomCache?.cache;
+          const cache = window.jotaiAtomCache?.cache;
           if (!cache) return { ok: false, error: 'jotaiAtomCache.cache not found' };
 
           // find positionAtom
@@ -29748,7 +29712,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         e.stopPropagation();
 
         try {
-          const slots = targetWindow.MagicCircle_RoomConnection?.lastRoomStateJsonable?.child?.data?.userSlots;
+          const slots = window.MagicCircle_RoomConnection?.lastRoomStateJsonable?.child?.data?.userSlots;
           if (!Array.isArray(slots)) {
             productionWarn('⚠️ userSlots not found in room state');
             return;
@@ -29771,7 +29735,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             productionLog(`🔧 CLIENT: Updating local position via jotai atoms...`);
 
             // Method 1A: Try jotaiAtomCache for player position
-            if (targetWindow.jotaiAtomCache) {
+            if (window.jotaiAtomCache) {
               productionLog(`🔍 CLIENT: Searching jotaiAtomCache for player position atom...`);
 
               // Common player position atom paths to try
@@ -29783,7 +29747,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
               let playerPositionAtom = null;
               for (const atomPath of playerPositionPaths) {
-                const atom = targetWindow.jotaiAtomCache.get(atomPath);
+                const atom = window.jotaiAtomCache.get(atomPath);
                 if (atom) {
                   productionLog(`✅ CLIENT: Found player position atom at: ${atomPath}`);
                   playerPositionAtom = atom;
@@ -29795,7 +29759,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               if (playerPositionAtom && playerPositionAtom.write) {
                 try {
                   // Try to get the jotai store from window
-                  const store = targetWindow.jotaiStore || targetWindow.store;
+                  const store = window.jotaiStore || window.store;
                   if (store && store.set) {
                     await store.set(playerPositionAtom, { x: pos.x, y: pos.y });
                     clientUpdateSuccess = true;
@@ -29813,7 +29777,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                 if (UnifiedState.data.settings.debugMode) {
                   productionLog(
                     `🔍 CLIENT: Available atoms in cache:`,
-                    Array.from(targetWindow.jotaiAtomCache.keys()).filter(
+                    Array.from(window.jotaiAtomCache.keys()).filter(
                       key =>
                         key.includes('position') ||
                         key.includes('Position') ||
@@ -29843,7 +29807,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
             // Method 1D: Fallback to PlayerService
             if (!clientUpdateSuccess) {
-              const PS = targetWindow.PlayerService || targetWindow.Quinoa?.PlayerService;
+              const PS = window.PlayerService || window.Quinoa?.PlayerService;
               if (PS?.setPosition) {
                 await PS.setPosition(pos.x, pos.y);
                 clientUpdateSuccess = true;
@@ -29854,10 +29818,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             if (!clientUpdateSuccess) {
               productionLog(`❌ CLIENT: All client-side position update methods failed`);
               productionLog(`🔍 CLIENT: Available globals:`, {
-                jotaiAtomCache: !!targetWindow.jotaiAtomCache,
+                jotaiAtomCache: !!window.jotaiAtomCache,
                 windowAtoms: !!window.Atoms,
                 localTeleport: typeof window.localTeleport,
-                PlayerService: !!(targetWindow.PlayerService || targetWindow.Quinoa?.PlayerService)
+                PlayerService: !!(window.PlayerService || window.Quinoa?.PlayerService)
               });
             }
           } catch (error) {
@@ -30106,16 +30070,16 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
       const maxRetries = 3;
       // CRITICAL FIX: If game is already ready, don't delay! Only delay if we need to retry
       const gameAlreadyReady =
-        (targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache) && targetWindow.MagicCircle_RoomConnection;
+        (window.jotaiAtomCache?.cache || window.jotaiAtomCache) && window.MagicCircle_RoomConnection;
       const initialDelay = gameAlreadyReady ? 0 : 2000;
 
       const attemptInit = () => {
         // Check if game is ready
         const gameReadiness = {
-          jotaiAtomCache: !!targetWindow.jotaiAtomCache,
-          magicCircleConnection: !!targetWindow.MagicCircle_RoomConnection,
-          jotaiType: typeof targetWindow.jotaiAtomCache,
-          connectionType: typeof targetWindow.MagicCircle_RoomConnection
+          jotaiAtomCache: !!window.jotaiAtomCache,
+          magicCircleConnection: !!window.MagicCircle_RoomConnection,
+          jotaiType: typeof window.jotaiAtomCache,
+          connectionType: typeof window.MagicCircle_RoomConnection
         };
 
         if (window.MGA_DEBUG) {
@@ -30127,7 +30091,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           });
         }
 
-        if (targetWindow.jotaiAtomCache && targetWindow.MagicCircle_RoomConnection) {
+        if (window.jotaiAtomCache && window.MagicCircle_RoomConnection) {
           productionLog('✅ Game ready, initializing script...');
           if (window.MGA_DEBUG) {
             window.MGA_DEBUG.logStage('GAME_READY', gameReadiness);
@@ -30140,7 +30104,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         } else if (retryCount < maxRetries) {
           retryCount++;
           productionLog(
-            `⏳ Game not ready (jotaiAtomCache: ${!!targetWindow.jotaiAtomCache}, RoomConnection: ${!!targetWindow.MagicCircle_RoomConnection}), retry ${retryCount}/${maxRetries} in 1s...`
+            `⏳ Game not ready (jotaiAtomCache: ${!!window.jotaiAtomCache}, RoomConnection: ${!!window.MagicCircle_RoomConnection}), retry ${retryCount}/${maxRetries} in 1s...`
           );
           if (window.MGA_DEBUG) {
             window.MGA_DEBUG.logStage('GAME_NOT_READY_RETRYING', { retryCount, gameReadiness });
@@ -30180,13 +30144,13 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
         productionLog('🌱 Magic Garden Unified Assistant initializing...');
         productionLog(
           '📊 Connection Status:',
-          targetWindow.MagicCircle_RoomConnection ? '✅ Available' : '❌ Not found'
+          window.MagicCircle_RoomConnection ? '✅ Available' : '❌ Not found'
         );
 
         if (window.MGA_DEBUG) {
           window.MGA_DEBUG.logStage('CONTINUE_INITIALIZATION', {
-            connectionStatus: !!targetWindow.MagicCircle_RoomConnection,
-            jotaiStatus: !!targetWindow.jotaiAtomCache,
+            connectionStatus: !!window.MagicCircle_RoomConnection,
+            jotaiStatus: !!window.jotaiAtomCache,
             domState: document.readyState,
             timestamp: performance.now()
           });
@@ -30445,11 +30409,11 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                 toInventoryIndex: toIndex
               };
               if (
-                targetWindow &&
-                targetWindow.MagicCircle_RoomConnection &&
-                typeof targetWindow.MagicCircle_RoomConnection.sendMessage === 'function'
+                window &&
+                window.MagicCircle_RoomConnection &&
+                typeof window.MagicCircle_RoomConnection.sendMessage === 'function'
               ) {
-                targetWindow.MagicCircle_RoomConnection.sendMessage(msg);
+                window.MagicCircle_RoomConnection.sendMessage(msg);
               } else {
                 console.warn('[MGTOOLS-FIX-D] MagicCircle_RoomConnection not available — simulated move:', msg);
               }
@@ -30533,21 +30497,21 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               btn.addEventListener('click', ev => {
                 const petSortBy = ev.shiftKey ? 'xp' : 'rarity';
 
-                // 3-TIER FALLBACK: UnifiedState → targetWindow → window search
+                // 3-TIER FALLBACK: UnifiedState → window → window search
                 const inventoryObj =
                   UnifiedState.atoms.inventory ||
-                  targetWindow.inventory ||
-                  targetWindow.Inventory ||
-                  targetWindow.gameInventory ||
+                  window.inventory ||
+                  window.Inventory ||
+                  window.gameInventory ||
                   (typeof inventory !== 'undefined' && inventory) ||
                   null;
 
                 if (!inventoryObj || !Array.isArray(inventoryObj.items)) {
                   console.error('[MGTOOLS-FIX-D] Could not find inventory object. Searching window keys...');
                   // Try to find any object on window with .items array (best-effort)
-                  for (const k of Object.keys(targetWindow)) {
+                  for (const k of Object.keys(window)) {
                     try {
-                      const candidate = targetWindow[k];
+                      const candidate = window[k];
                       if (candidate && candidate.items && Array.isArray(candidate.items)) {
                         console.log(`[MGTOOLS-FIX-D] ✅ Using inventory from window["${k}"]`);
                         sortInventoryKeepHeadAndSendMovesOptimized(candidate, { fixedCount: 9, petSortBy });
@@ -30588,8 +30552,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             observer.observe(targetDocument.body, { childList: true, subtree: true });
 
             // Store observer for cleanup if needed
-            if (!targetWindow.MGToolsObservers) targetWindow.MGToolsObservers = [];
-            targetWindow.MGToolsObservers.push(observer);
+            if (!window.MGToolsObservers) window.MGToolsObservers = [];
+            window.MGToolsObservers.push(observer);
 
             console.log('[MGTOOLS-FIX-D] ✅ Sort Inventory button initialized with mutation observer');
           };
@@ -30705,7 +30669,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               let pet = null;
 
               // Tier 1: Try Jotai atom cache (only need cache, not store!)
-              if (targetWindow.jotaiAtomCache) {
+              if (window.jotaiAtomCache) {
                 try {
                   const freshPetSlots = await getAtomValue('myPrimitivePetSlotsAtom');
                   if (freshPetSlots?.[petIndex]) {
@@ -30724,8 +30688,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               }
 
               // Tier 3: window.myData (game global)
-              if (!pet && targetWindow.myData?.petSlots?.[petIndex]) {
-                pet = targetWindow.myData.petSlots[petIndex];
+              if (!pet && window.myData?.petSlots?.[petIndex]) {
+                pet = window.myData.petSlots[petIndex];
                 console.log('[MGTOOLS-FIX-A] Using window.myData (Tier 3)');
               }
 
@@ -30776,7 +30740,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               let inventoryItems = null;
 
               // Tier 1: Try Jotai atom cache (only need cache, not store!)
-              if (targetWindow.jotaiAtomCache) {
+              if (window.jotaiAtomCache) {
                 try {
                   const freshInventory = await getAtomValue('myCropInventoryAtom');
                   if (freshInventory?.items) {
@@ -30812,8 +30776,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
               // Tier 3: window.myData
               if (!inventoryItems || inventoryItems.length === 0) {
-                if (targetWindow.myData?.inventory?.items) {
-                  inventoryItems = targetWindow.myData.inventory.items;
+                if (window.myData?.inventory?.items) {
+                  inventoryItems = window.myData.inventory.items;
                   console.log('[MGTOOLS-FIX-A] Using window.myData inventory (Tier 3)');
                 }
               }
@@ -31051,10 +31015,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                 return UnifiedState.atoms.inventory.items;
               }
 
-              // Last resort: targetWindow.myData
-              if (targetWindow.myData?.inventory?.items) {
-                console.warn('[MGTools Feed] Using targetWindow.myData.inventory (likely stale)');
-                return targetWindow.myData.inventory.items;
+              // Last resort: window.myData
+              if (window.myData?.inventory?.items) {
+                console.warn('[MGTools Feed] Using window.myData.inventory (likely stale)');
+                return window.myData.inventory.items;
               }
 
               console.error('[MGTools Feed] No inventory data available from any source!');
@@ -31062,7 +31026,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             } catch (error) {
               console.error('[MGTools Feed] Error getting fresh inventory:', error);
               // Final fallback
-              return UnifiedState.atoms.inventory?.items || targetWindow.myData?.inventory?.items || [];
+              return UnifiedState.atoms.inventory?.items || window.myData?.inventory?.items || [];
             }
           };
 
@@ -31101,8 +31065,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
               const allCanvases = Array.from(targetDocument.querySelectorAll('canvas'));
 
               // Filter to pet avatar canvases (left 15% of screen, reasonable size)
-              const viewportWidth = targetWindow.innerWidth;
-              const viewportHeight = targetWindow.innerHeight;
+              const viewportWidth = window.innerWidth;
+              const viewportHeight = window.innerHeight;
               const leftThreshold = viewportWidth * 0.15;
               const minTop = 80;
               const maxTop = viewportHeight - 100;
@@ -31182,7 +31146,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                   }
 
                   // Set container to position: relative
-                  const currentPosition = targetWindow.getComputedStyle(targetContainer).position;
+                  const currentPosition = window.getComputedStyle(targetContainer).position;
                   if (currentPosition === 'static') {
                     targetContainer.style.position = 'relative';
                   }
@@ -31222,8 +31186,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             // Helper to find all visible pet containers
             function findVisiblePetContainers() {
               const allCanvases = Array.from(targetDocument.querySelectorAll('canvas'));
-              const viewportWidth = targetWindow.innerWidth;
-              const viewportHeight = targetWindow.innerHeight;
+              const viewportWidth = window.innerWidth;
+              const viewportHeight = window.innerHeight;
               const leftThreshold = viewportWidth * 0.15;
               const minTop = 80;
               const maxTop = viewportHeight - 100;
@@ -31234,7 +31198,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
                   const rect = canvas.getBoundingClientRect();
 
                   // Check if visible (not hidden with CSS)
-                  const computedStyle = targetWindow.getComputedStyle(canvas);
+                  const computedStyle = window.getComputedStyle(canvas);
                   const isVisible =
                     computedStyle.display !== 'none' &&
                     computedStyle.visibility !== 'hidden' &&
@@ -31295,7 +31259,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
               try {
                 // Set container to position: relative
-                const currentPosition = targetWindow.getComputedStyle(container).position;
+                const currentPosition = window.getComputedStyle(container).position;
                 if (currentPosition === 'static') {
                   container.style.position = 'relative';
                 }
@@ -31351,10 +31315,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             }, 2000);
 
             // Store interval ID for potential cleanup
-            if (!targetWindow.MGToolsIntervals) {
-              targetWindow.MGToolsIntervals = [];
+            if (!window.MGToolsIntervals) {
+              window.MGToolsIntervals = [];
             }
-            targetWindow.MGToolsIntervals.push(pollInterval);
+            window.MGToolsIntervals.push(pollInterval);
 
             console.log(
               '[MGTools Feed] ✅ Polling active (500ms) - buttons will auto-reappear when containers become visible'
@@ -31415,7 +31379,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
                 while (Date.now() - startTime < maxWait) {
                   // Check if atom cache is ready (this is what we actually need!)
-                  if (targetWindow.jotaiAtomCache) {
+                  if (window.jotaiAtomCache) {
                     const elapsed = Date.now() - startTime;
                     console.log(`[MGTools Feed] ✅ Jotai atom cache ready after ${elapsed}ms`);
                     UnifiedState.jotaiReady = true; // Mark as ready in UnifiedState
@@ -31636,7 +31600,7 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
           productionLog('✅ Magic Garden Unified Assistant initialized successfully!');
 
           // Add global recovery function for users whose UI disappears
-          targetWindow.MGA_SHOW_UI = function () {
+          window.MGA_SHOW_UI = function () {
             console.log('%c🔧 MGTools Recovery', 'color: #4CAF50; font-weight: bold; font-size: 14px');
             console.log('Clearing corrupted UI state...');
             try {
@@ -31675,8 +31639,8 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
             'connectionCheck',
             () => {
               const hasConnection =
-                targetWindow.MagicCircle_RoomConnection &&
-                typeof targetWindow.MagicCircle_RoomConnection.sendMessage === 'function';
+                window.MagicCircle_RoomConnection &&
+                typeof window.MagicCircle_RoomConnection.sendMessage === 'function';
               if (!UnifiedState.connectionStatus && hasConnection) {
                 productionLog('🔌 Game connection established!');
                 UnifiedState.connectionStatus = true;
@@ -31748,10 +31712,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
       const checkGameReady = () => {
         // More flexible game readiness check - be less strict about requirements
-        const atomCache = targetWindow.jotaiAtomCache?.cache || targetWindow.jotaiAtomCache;
+        const atomCache = window.jotaiAtomCache?.cache || window.jotaiAtomCache;
         const hasAtoms = atomCache && typeof atomCache === 'object';
         const hasConnection =
-          targetWindow.MagicCircle_RoomConnection && typeof targetWindow.MagicCircle_RoomConnection === 'object';
+          window.MagicCircle_RoomConnection && typeof window.MagicCircle_RoomConnection === 'object';
         const hasBasicDom = targetDocument.body && document.readyState === 'complete';
 
         // Check for alternative game indicators if primary ones fail (use regular document for game detection)
@@ -31965,10 +31929,10 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
 
         checkConnection: () => {
           const hasConnection =
-            targetWindow.MagicCircle_RoomConnection &&
-            typeof targetWindow.MagicCircle_RoomConnection.sendMessage === 'function';
+            window.MagicCircle_RoomConnection &&
+            typeof window.MagicCircle_RoomConnection.sendMessage === 'function';
           productionLog('🔌 Connection Status:', hasConnection ? '✅ Available' : '❌ Not Available');
-          productionLog('📡 RoomConnection Object:', targetWindow.MagicCircle_RoomConnection);
+          productionLog('📡 RoomConnection Object:', window.MagicCircle_RoomConnection);
           return hasConnection;
         },
 
@@ -32953,399 +32917,6 @@ console.log('[MGTOOLS-DEBUG] 4. Window type:', window === window.top ? 'TOP' : '
     }
   }
 
-  // ---------- Rooms via /api/rooms/{code}/info with Fallbacks ----------
-  (function roomsInfo() {
-    // CRITICAL: Detect correct window scope (Tampermonkey uses unsafeWindow)
-    // This IIFE is in separate scope from main script, so we need to detect which window has our data
-    const isUserscript = typeof unsafeWindow !== 'undefined';
-    const correctWindow = isUserscript ? unsafeWindow : window;
-
-    // Get correct API base URL (handles Discord browser context)
-    const globalScope = correctWindow;
-    const getApiBase = globalScope.getGameApiBaseUrl || (() => location.origin);
-    const apiBase = getApiBase();
-    const API_V1 = name => `${apiBase}/api/rooms/${encodeURIComponent(name)}/info`;
-    const TRACKED = correctWindow.UnifiedState?.data?.customRooms ||
-      correctWindow.TRACKED_ROOMS || [];
-    let extra = new Set();
-    const counts = {};
-
-    // Build reverse lookup: Discord room ID -> display name
-    // This allows us to store counts by name (e.g., 'PLAY1') instead of by ID
-    const roomIdToName = {};
-
-    // Parse player count from various API response formats
-    function parsePlayerCount(data) {
-      if (!data) return 0;
-
-      // Try multiple field names
-      const count =
-        data?.numPlayers ??
-        data?.players?.online ??
-        data?.players?.count ??
-        data?.online ??
-        data?.count ??
-        data?.playerCount ??
-        0;
-
-      return Math.max(0, Number(count) || 0);
-    }
-
-    // Fetch using standard fetch API
-    async function fetchWithFetch(url, name) {
-      const r = await fetch(url, {
-        method: 'GET',
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(10000)
-      });
-
-      if (!r.ok) {
-        throw new Error(`HTTP ${r.status}`);
-      }
-
-      const data = await r.json();
-      return data;
-    }
-
-    // Fallback: Fetch using GM_xmlhttpRequest (bypasses CORS)
-    async function fetchWithGM(url, name) {
-      return new Promise((resolve, reject) => {
-        if (typeof GM_xmlhttpRequest !== 'function') {
-          reject(new Error('GM_xmlhttpRequest not available'));
-          return;
-        }
-
-        GM_xmlhttpRequest({
-          method: 'GET',
-          url: url,
-          headers: { Accept: 'application/json' },
-          timeout: 10000,
-          onload: response => {
-            if (response.status >= 200 && response.status < 300) {
-              try {
-                const data = JSON.parse(response.responseText);
-                resolve(data);
-              } catch (e) {
-                reject(new Error(`Parse error: ${e.message}`));
-              }
-            } else {
-              reject(new Error(`HTTP ${response.status}`));
-            }
-          },
-          onerror: error => reject(new Error('Network error')),
-          ontimeout: () => reject(new Error('Timeout'))
-        });
-      });
-    }
-
-    async function fetchOne(roomIdOrName) {
-      const roomDebugMode = correctWindow.UnifiedState?.data?.settings?.roomDebugMode;
-      const isDiscordRoom = roomIdOrName.includes('i-') && roomIdOrName.includes('-gc-');
-
-      try {
-        let data = null;
-
-        // Try /api/rooms/{code}/info endpoint (works for both simple codes and Discord IDs)
-        try {
-          const url1 = API_V1(roomIdOrName);
-          data = await fetchWithFetch(url1, roomIdOrName);
-          if (roomDebugMode) {
-            console.log(`[ROOMS] ✅ Fetch succeeded for ${roomIdOrName}:`, data);
-          }
-        } catch (e1) {
-          // Try GM_xmlhttpRequest fallback if fetch fails
-          try {
-            const url1 = API_V1(roomIdOrName);
-            if (roomDebugMode) {
-              console.log(`[ROOMS] 🔄 Retrying ${roomIdOrName} with GM_xmlhttpRequest`);
-            }
-            data = await fetchWithGM(url1, roomIdOrName);
-            if (roomDebugMode) {
-              console.log(`[ROOMS] ✅ GM fetch succeeded for ${roomIdOrName}:`, data);
-            }
-          } catch (e2) {
-            // Log error if Room Debug Mode is enabled
-            if (roomDebugMode) {
-              console.warn(`[ROOMS] ❌ Failed to fetch ${roomIdOrName}:`, e1.message);
-            }
-            throw new Error(`All methods failed for ${roomIdOrName}`);
-          }
-        }
-
-        // Parse the count from whichever API succeeded
-        const online = parsePlayerCount(data);
-
-        // CRITICAL: For Discord rooms, store by DISPLAY NAME, not ID
-        // This allows UI to find counts by looking up 'PLAY1' instead of long ID
-        let storageKey;
-        if (isDiscordRoom && roomIdToName[roomIdOrName]) {
-          storageKey = roomIdToName[roomIdOrName].toUpperCase();
-          if (roomDebugMode && online > 0) {
-            console.log(`[ROOMS] 📊 Discord room ${roomIdToName[roomIdOrName]}: ${online} players`);
-          }
-        } else {
-          storageKey = roomIdOrName.toUpperCase();
-          if (roomDebugMode && online > 0) {
-            console.log(`[ROOMS] 📊 ${roomIdOrName}: ${online} players`);
-          }
-        }
-
-        counts[storageKey] = online;
-      } catch (e) {
-        // Store failure as 0, using same key logic
-        let storageKey;
-        if (isDiscordRoom && roomIdToName[roomIdOrName]) {
-          storageKey = roomIdToName[roomIdOrName].toUpperCase();
-        } else {
-          storageKey = roomIdOrName.toUpperCase();
-        }
-        counts[storageKey] = 0;
-
-        // Log failures only in debug mode
-        if (roomDebugMode) {
-          console.warn(
-            `[ROOMS] ⚠️ ${isDiscordRoom ? 'Discord room' : 'Room'} ${roomIdOrName.substring(0, 30)}... failed:`,
-            e.message
-          );
-        }
-      }
-    }
-
-    // Track last poll time when UI was hidden (for reduced frequency)
-    let lastTickWhenHidden = 0;
-
-    // Cache room UI visibility check
-    let cachedRoomsUIVisible = null;
-    let lastUICheckTime = 0;
-
-    async function tick() {
-      const roomDebugMode = correctWindow.UnifiedState?.data?.settings?.roomDebugMode;
-
-      // SMART POLLING: Reduce frequency when Rooms UI is closed (not skip entirely)
-      // Cache the UI check - only re-query every 5 seconds
-      const now = Date.now();
-      if (!cachedRoomsUIVisible || now - lastUICheckTime > 5000) {
-        cachedRoomsUIVisible =
-          document.querySelector('.mga-sidebar[data-visible="true"] [data-tab="rooms"]') ||
-          document.querySelector('#room-status-list') ||
-          document.querySelector('[data-mga-popout="rooms"]');
-        lastUICheckTime = now;
-      }
-      const roomsUIVisible = cachedRoomsUIVisible;
-
-      // If UI not visible, only poll every 30 seconds instead of every 5 seconds
-      if (!roomsUIVisible) {
-        const now = Date.now();
-        // Skip this tick if we polled less than 30 seconds ago while hidden
-        if (lastTickWhenHidden > 0 && now - lastTickWhenHidden < 30000) {
-          if (roomDebugMode) {
-            const secondsSinceLastPoll = Math.floor((now - lastTickWhenHidden) / 1000);
-            console.log(`[ROOMS] ⏸️ Skipping tick - UI hidden (last poll ${secondsSinceLastPoll}s ago)`);
-          }
-          return;
-        }
-        lastTickWhenHidden = now;
-        if (roomDebugMode) {
-          console.log('[ROOMS] 🔄 Polling while UI hidden (30s interval)');
-        }
-      } else {
-        // Reset hidden timer when UI is visible
-        lastTickWhenHidden = 0;
-      }
-
-      // Include Discord rooms from RoomRegistry for play1-play50 and country rooms
-      const discordRoomIds =
-        typeof correctWindow.RoomRegistry !== 'undefined' && correctWindow.RoomRegistry?.discord
-          ? correctWindow.RoomRegistry.discord.map(r => r.id)
-          : [];
-
-      // CRITICAL: Build roomId -> name lookup for Discord rooms
-      // This allows us to store counts by display name (e.g., 'PLAY1') instead of long ID
-      if (correctWindow.RoomRegistry?.discord && Object.keys(roomIdToName).length === 0) {
-        correctWindow.RoomRegistry.discord.forEach(room => {
-          roomIdToName[room.id] = room.name;
-        });
-        if (roomDebugMode) {
-          console.log('[ROOMS] 🗺️ Built Discord room lookup map:', Object.keys(roomIdToName).length, 'rooms');
-        }
-      }
-
-      const names = [...TRACKED, ...extra, ...discordRoomIds];
-
-      if (roomDebugMode) {
-        console.log(
-          `[ROOMS] 🔄 Tick running: ${names.length} total rooms (${TRACKED.length} MG/Custom, ${discordRoomIds.length} Discord)`
-        );
-      }
-
-      // PERFORMANCE OPTIMIZATION: Batch room requests to avoid network spam
-      // Process 10 rooms at a time with 200ms delay between batches
-      try {
-        const BATCH_SIZE = 10;
-        const BATCH_DELAY = 200; // ms between batches
-
-        for (let i = 0; i < names.length; i += BATCH_SIZE) {
-          const batch = names.slice(i, i + BATCH_SIZE);
-          await Promise.all(batch.map(fetchOne));
-
-          // Add delay between batches (except for last batch)
-          if (i + BATCH_SIZE < names.length) {
-            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
-          }
-        }
-
-        // Show sample of Discord room counts if debug mode enabled
-        if (roomDebugMode) {
-          const discordKeys = Object.keys(counts).filter(k => k.startsWith('PLAY'));
-          if (discordKeys.length > 0) {
-            console.log(
-              '[ROOMS] 📝 Sample Discord room counts:',
-              discordKeys
-                .slice(0, 5)
-                .map(k => `${k}:${counts[k]}`)
-                .join(', ')
-            );
-          }
-        }
-      } catch (e) {
-        console.error('[ROOMS] ❌ Tick error:', e);
-      }
-
-      // write into UnifiedState so UI updates
-      if (typeof correctWindow.UnifiedState !== 'undefined' && correctWindow.UnifiedState?.data) {
-        correctWindow.UnifiedState.data.roomStatus = correctWindow.UnifiedState.data.roomStatus || {};
-        // CRITICAL: Directly replace counts to ensure fresh data
-        correctWindow.UnifiedState.data.roomStatus.counts = { ...counts };
-
-        // ADDED: Persist to storage
-        MGA_saveJSON('MGA_roomStatus', correctWindow.UnifiedState.data.roomStatus);
-
-        if (roomDebugMode) {
-          console.log(`[ROOMS] ✅ Updated ${Object.keys(counts).length} room counts in UnifiedState`);
-        }
-
-        // refresh any open rooms views
-        if (typeof window.refreshSeparateWindowPopouts === 'function') {
-          try {
-            window.refreshSeparateWindowPopouts('rooms');
-          } catch {}
-        }
-        try {
-          rerenderRoomsUI();
-          // Force update room counts in any visible room UI
-          document.querySelectorAll('.mga-tab-item[data-tab="rooms"]').forEach(tab => tab.click());
-        } catch {}
-        // Inline rooms lists
-        const list = document.getElementById('room-status-list');
-        if (list) {
-          // trigger the existing re-render path if available
-          if (typeof window.updateRoomStatusUI === 'function') {
-            window.updateRoomStatusUI();
-          } else {
-            // minimal DOM update: replace counts in .room-count els
-            list.querySelectorAll('.room-row').forEach(row => {
-              const code = (row.getAttribute('data-room') || '').toUpperCase();
-              const span = row.querySelector('.room-count');
-              if (span && code) {
-                span.textContent = String(counts[code] ?? window.UnifiedState.data.roomStatus.counts[code] ?? 0);
-              }
-            });
-          }
-        }
-      }
-    }
-    // PERFORMANCE OPTIMIZATION: Watch specific container instead of entire document
-    // This reduces mutation callback frequency by 90%+
-    const obs = new MutationObserver(() => {
-      const inp = document.getElementById('room-search-input');
-      if (inp && !inp.__mgtpBound) {
-        inp.__mgtpBound = true;
-        inp.addEventListener('input', () => {
-          const q = (inp.value || '').trim().toUpperCase();
-          extra = new Set(
-            q
-              ? q
-                  .split(',')
-                  .map(s => s.trim())
-                  .filter(Boolean)
-              : []
-          );
-        });
-      }
-    });
-
-    // Watch only the sidebar container instead of entire document
-    // Falls back to document if sidebar not found yet
-    const observeRoomSearch = () => {
-      const sidebar = document.getElementById('mgh-sidebar') || document.querySelector('.mga-sidebar');
-      const targetElement = sidebar || document.documentElement;
-
-      obs.observe(targetElement, {
-        subtree: true,
-        childList: true,
-        // OPTIMIZATION: Only watch childList changes, ignore attributes/characterData
-        attributes: false,
-        characterData: false
-      });
-
-      if (!sidebar) {
-        // If sidebar not ready yet, retry in 1 second
-        setTimeout(() => {
-          obs.disconnect();
-          observeRoomSearch();
-        }, 1000);
-      }
-    };
-
-    observeRoomSearch();
-
-    // Wait for UnifiedState and RoomRegistry to be ready before starting polling
-    function startPollingWhenReady() {
-      const hasUnifiedState = typeof correctWindow.UnifiedState !== 'undefined' && correctWindow.UnifiedState?.data;
-      const hasRoomRegistry = typeof correctWindow.RoomRegistry !== 'undefined' && correctWindow.RoomRegistry?.discord;
-
-      if (hasUnifiedState && hasRoomRegistry) {
-        // PERFORMANCE OPTIMIZATION: Increased interval from 5s to 10s
-        // Room counts don't change that rapidly, 10s is still responsive
-        setTimeout(tick, 1000); // First tick after 1 second
-        setInterval(tick, 10000); // Then every 10 seconds (was 5s)
-      } else {
-        setTimeout(startPollingWhenReady, 500);
-      }
-    }
-
-    startPollingWhenReady();
-
-    // Expose diagnostic function for testing
-    // Usage: testDiscordRoomFetch() or testDiscordRoomFetch('room-id')
-    correctWindow.testDiscordRoomFetch = async function (roomId) {
-      const testId = roomId || 'i-1425232387037462538-gc-1399110335469977781-1411124424676999308';
-      const url = `${apiBase}/api/rooms/${encodeURIComponent(testId)}/info`;
-
-      console.log('[ROOMS TEST] Testing:', testId.substring(0, 40) + '...');
-      console.log('[ROOMS TEST] URL:', url);
-
-      try {
-        const response = await fetch(url, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { Accept: 'application/json' }
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          console.error('[ROOMS TEST] ❌ HTTP', response.status, '-', text);
-          return;
-        }
-
-        const data = await response.json();
-        console.log('[ROOMS TEST] ✅ Success! Players:', data.numPlayers ?? 'NOT FOUND', '| Full data:', data);
-      } catch (e) {
-        console.error('[ROOMS TEST] ❌ Fetch failed:', e);
-      }
-    };
-  })();
 
   // ==================== ENHANCED WEBSOCKET AUTO-RECONNECT SYSTEM ====================
   (function enhancedSocketReconnect() {

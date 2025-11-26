@@ -1,6 +1,6 @@
 //magicCircleDesktopVersion = process.env.MAGIC_GARDEN_APP_VERSION || '???.???.???';
 //Temporary Manual Override
-        magicCircleDesktopVersion = "0.1.5"
+        magicCircleDesktopVersion = "0.1.6"
         let tabListenerAdded = false;
         let aboutTabRepositioned = false;
 
@@ -117,11 +117,12 @@
         const domainSelect = panel.querySelector('#domain-select');
         const betaCheckbox = panel.querySelector('#beta-checkbox');
         const disableModsCheckbox = panel.querySelector('#disable-mods-checkbox');
+        const keepGameRunningInBackgroundCheckbox = panel.querySelector('#run-in-background');
         const sfxVolumeSlider = panel.querySelector('#sfx-volume-slider');
         const saveButton = panel.querySelector('#save-button'); // New
         const saveChangesButton = panel.querySelector('#save-changes-button'); // New
 
-        if (!domainSelect || !betaCheckbox || !disableModsCheckbox || !sfxVolumeSlider || !saveButton || !saveChangesButton) return; // Updated
+        if (!domainSelect || !betaCheckbox || !disableModsCheckbox || !sfxVolumeSlider || !saveButton || !saveChangesButton || !keepGameRunningInBackgroundCheckbox) return; // Updated
 
         const customSelectValue = domainSelect.querySelector('.custom-select-value');
         const customSelectOptions = domainSelect.querySelector('.custom-select-options');
@@ -182,8 +183,10 @@
                 disableModsCheckbox.checked = currentSettings.disableMods;
                 currentSfxVolume = currentSettings.sfxVolume !== undefined ? currentSettings.sfxVolume : 1.0; // Update global volume
                 sfxVolumeSlider.value = currentSfxVolume; // Set slider value
+                keepGameRunningInBackgroundCheckbox.checked = currentSettings.keepGameAlive;
                 updateSwitchVisuals(betaCheckbox);
                 updateSwitchVisuals(disableModsCheckbox);
+                updateSwitchVisuals(keepGameRunningInBackgroundCheckbox);
             }
         } catch (error) {
             console.error('Failed to load initial settings:', error);
@@ -192,6 +195,7 @@
         // Add listener for changes
         betaCheckbox.addEventListener('change', () => updateSwitchVisuals(betaCheckbox));
         disableModsCheckbox.addEventListener('change', () => updateSwitchVisuals(disableModsCheckbox));
+        keepGameRunningInBackgroundCheckbox.addEventListener('change', () => updateSwitchVisuals(keepGameRunningInBackgroundCheckbox));
 
         // SFX Volume Slider Listener
         sfxVolumeSlider.addEventListener('input', (event) => {
@@ -203,7 +207,8 @@
         const saveSettings = async () => {
             const domain = domainSelect.value;
             const isBeta = betaCheckbox.checked;
-            await desktopApi.settings.setDomain(domain, isBeta);
+            const keepGameAlive = keepGameRunningInBackgroundCheckbox.checked;
+            await desktopApi.settings.setDomain(domain, isBeta, keepGameAlive);
             await desktopApi.settings.setSfxVolume(currentSfxVolume); // Save SFX volume
         };
 
@@ -787,4 +792,5 @@ function convertMp3ToBase64(mp3File, callback) {
               }
 
 
-              loadModsImmediately();
+
+                 loadModsImmediately();

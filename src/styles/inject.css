@@ -11,8 +11,18 @@
 .css-1mte1yp {
   padding: 10px !important;
 }
+.css-1p0663w {
+    flex-direction: column !important;
+    display: flex !important;
+    gap: var(--chakra-space-2) !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    height: 100% !important;
+}
 
-
+.css-174zdw0 {
+    height: 80px !important;
+}
 /* Custom styles for the injected console structure (matching preload.js) */
 #custom-console-container {
     position: fixed;

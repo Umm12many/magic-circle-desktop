@@ -39,6 +39,12 @@ function getSettings() {
         if (settings.mods === undefined) {
             settings.mods = {};
         }
+        if (settings.keepGameAlive === undefined) {
+            settings.keepGameAlive = false;
+        }
+        if (settings.rejoinRoom === undefined) {
+            settings.rejoinRoom = false;
+        }
         return settings;
     } catch (error) {
         const defaultSettings = {
@@ -46,7 +52,9 @@ function getSettings() {
             isBeta: false,
             sfxVolume: 1.0, // Default SFX volume
             disableMods: false, // Default disable mods
+            keepGameAlive: false,
             disableController: false, // Default disable controller
+            rejoinRoom: false,
             mods: {}
         };
         saveSettings(defaultSettings);
@@ -94,8 +102,6 @@ var notifier = new WindowsToaster({
 app.setAppUserModelId('com.umm12many.magicgarden');
 let mainWindow; // Module-scoped variable to hold the main window
 let devConsoleWindow = null; // New module-scoped variable for the dev console
-let settingsWindow = null;
-
 // Variable to hold the URL from the deep link, if any, before the window is ready
 let deepLinkUrlToLoad = null;
 
@@ -528,7 +534,7 @@ function createDevConsoleWindow() {
       preload: path.join(__dirname, 'dev-console-preload.js'),
       // Security best practices for Electron
       nodeIntegration: false,
-      contextIsolation: true,
+      contextIsolation: false,
     },
     parent: mainWindow,
     modal: false,
@@ -592,6 +598,7 @@ function updateTitle(win) {
 
 const createWindow = () => {
       loadWindowState();
+      const settings = getSettings();
 
   // Create the browser window.
   mainWindow = new BrowserWindow({
@@ -603,7 +610,7 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // Recommended for security
       nodeIntegration: true,
-      backgroundThrottling: false // Keep timers running in background  
+      backgroundThrottling: !settings.keepGameAlive
     },
     titleBarStyle: 'hidden',
     titleBarOverlay: {
@@ -728,10 +735,11 @@ const createWindow = () => {
       return getSettings();
   });
 
-  ipcMain.handle('settings:set-domain', (event, domain, isBeta) => {
+  ipcMain.handle('settings:set-domain', (event, domain, isBeta, keepGameAlive) => {
       const settings = getSettings();
       settings.domain = domain;
       settings.isBeta = isBeta;
+      settings.keepGameAlive = keepGameAlive;
       saveSettings(settings);
   });
 
